@@ -1,7 +1,7 @@
 import React, { forwardRef, useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
 import ViewShot from 'react-native-view-shot';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MapPinIcon } from 'react-native-heroicons/outline';
 import { COLORS, SIZES } from '../constants/theme';
 
 interface LocationOverlayProps {
@@ -65,9 +65,11 @@ export const ImageWithLocationOverlay = forwardRef<ViewShot, LocationOverlayProp
       ref={ref}
       style={styles.container}
       options={{
-        fileName: `image_with_location_${Date.now()}`,
+        fileName: `task_image_${Date.now()}`,
         format: 'jpg',
         quality: 0.9,
+        result: 'tmpfile',
+        snapshotContentContainer: false,
       }}>
       <View style={[styles.imageContainer, { aspectRatio: imageAspectRatio }]}>
         <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
@@ -76,7 +78,7 @@ export const ImageWithLocationOverlay = forwardRef<ViewShot, LocationOverlayProp
         <View style={styles.overlay}>
           <View style={styles.overlayContainer}>
             <View style={styles.mapIconContainer}>
-              <Icon name="place" size={16} color={COLORS.WHITE} />
+              <MapPinIcon size={16} color={COLORS.WHITE} />
             </View>
             <View style={styles.overlayContent}>
               <Text style={styles.addressText} numberOfLines={1}>{locationData.address}</Text>
@@ -110,10 +112,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     justifyContent: 'center',
+    zIndex: 100,
+    minHeight: 60,
   },
   overlayContainer: {
     flexDirection: 'row',
@@ -131,20 +135,20 @@ const styles = StyleSheet.create({
   },
   addressText: {
     color: COLORS.WHITE,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 'bold',
-    marginBottom: 2,
+    marginBottom: 3,
   },
   coordinatesText: {
     color: COLORS.WHITE,
-    fontSize: 10,
-    opacity: 0.9,
-    marginBottom: 1,
+    fontSize: 11,
+    opacity: 0.95,
+    marginBottom: 2,
   },
   dateTimeText: {
     color: COLORS.WHITE,
-    fontSize: 10,
-    opacity: 0.9,
+    fontSize: 11,
+    opacity: 0.95,
   },
 });
 

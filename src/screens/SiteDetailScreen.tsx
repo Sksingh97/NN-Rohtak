@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,13 +13,19 @@ import {
   Dimensions,
   Modal,
   StatusBar,
-  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import {
+  PhotoIcon,
+  MapPinIcon,
+  CameraIcon,
+  ArrowLeftIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from 'react-native-heroicons/outline';
 import { launchCamera, launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
 import Geolocation from 'react-native-geolocation-service';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -36,8 +42,7 @@ import {
 import { withLoader } from '../components/Loader';
 import Button from '../components/Button';
 import LocationSubmissionModal from '../components/LocationSubmissionModal';
-import { ImageWithLocationOverlay } from '../components/ImageWithLocationOverlay';
-import { TaskImageWithOverlay, TaskImageWithOverlayRef } from '../components/TaskImageWithOverlay';
+import MultiImageLocationSubmissionModal from '../components/MultiImageLocationSubmissionModal';
 import { requestCameraPermission, requestLocationPermission, formatDateTime } from '../utils/helpers';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS, API_MESSAGES } from '../constants/strings';
@@ -53,7 +58,7 @@ interface SiteDetailScreenProps {
 const { width } = Dimensions.get('window');
 const imageSize = (width - 48) / 3;
 
-const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
+const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }) => {
   const [activeTab, setActiveTab] = useState(0); // 0 for This Month, 1 for Last Month
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
@@ -70,14 +75,13 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
   } | null>(null);
   
   // Task report modal states
-  const [isTaskModalVisible, setIsTaskModalVisible] = useState(false);
-  const [taskImages, setTaskImages] = useState<string[]>([]);
+  const [isTaskReportModalVisible, setIsTaskReportModalVisible] = useState(false);
+  const [capturedTaskImages, setCapturedTaskImages] = useState<string[]>([]);
   const [taskLocation, setTaskLocation] = useState<{
     latitude: number;
     longitude: number;
     timestamp: string;
   } | null>(null);
-  const [taskImageRefs, setTaskImageRefs] = useState<React.RefObject<TaskImageWithOverlayRef | null>[]>([]);
   
   const dispatch = useDispatch<AppDispatch>();
   
@@ -271,8 +275,10 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
 
     const imageUri = response.assets[0].uri!;
     
+    let currentTaskLocation = taskLocation;
+    
     // Get location for task images if not already captured
-    if (!taskLocation) {
+    if (!currentTaskLocation) {
       try {
         const hasLocationPermission = await requestLocationPermission();
         if (!hasLocationPermission) {
@@ -283,11 +289,13 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
         const location = await getCurrentLocation();
         const timestamp = new Date().toISOString();
         
-        setTaskLocation({
+        currentTaskLocation = {
           latitude: location.latitude,
           longitude: location.longitude,
           timestamp,
-        });
+        };
+        
+        setTaskLocation(currentTaskLocation);
       } catch (error) {
         Alert.alert('Error', 'Failed to get location. Please try again.');
         console.error('Location error:', error);
@@ -295,14 +303,10 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
       }
     }
     
-    setTaskImages(prev => {
-      const newImages = [...prev, imageUri];
-      // Create refs for all images
-      const newRefs = newImages.map(() => React.createRef<TaskImageWithOverlayRef | null>());
-      setTaskImageRefs(newRefs);
-      return newImages;
-    });
-    setIsTaskModalVisible(true);
+    // Append to existing images if any, otherwise create new array
+    const newImages = [...capturedTaskImages, imageUri];
+    setCapturedTaskImages(newImages);
+    setIsTaskReportModalVisible(true);
   };
 
   const handleTaskMultipleImageResponse = async (response: ImagePickerResponse) => {
@@ -310,8 +314,10 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
       return;
     }
 
+    let currentTaskLocation = taskLocation;
+
     // Get location for task images if not already captured
-    if (!taskLocation) {
+    if (!currentTaskLocation) {
       try {
         const hasLocationPermission = await requestLocationPermission();
         if (!hasLocationPermission) {
@@ -322,11 +328,13 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
         const location = await getCurrentLocation();
         const timestamp = new Date().toISOString();
         
-        setTaskLocation({
+        currentTaskLocation = {
           latitude: location.latitude,
           longitude: location.longitude,
           timestamp,
-        });
+        };
+        
+        setTaskLocation(currentTaskLocation);
       } catch (error) {
         Alert.alert('Error', 'Failed to get location. Please try again.');
         console.error('Location error:', error);
@@ -334,16 +342,12 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
       }
     }
 
-    const imageUris = response.assets.map(asset => asset.uri!);
+    const newImageUris = response.assets.map(asset => asset.uri!);
     
-    setTaskImages(prev => {
-      const newImages = [...prev, ...imageUris];
-      // Create refs for all images
-      const newRefs = newImages.map(() => React.createRef<TaskImageWithOverlayRef | null>());
-      setTaskImageRefs(newRefs);
-      return newImages;
-    });
-    setIsTaskModalVisible(true);
+    // Append to existing images if any, otherwise use new images
+    const allImages = [...capturedTaskImages, ...newImageUris];
+    setCapturedTaskImages(allImages);
+    setIsTaskReportModalVisible(true);
   };
 
   const submitAttendance = (imageWithOverlay: string) => {
@@ -367,58 +371,62 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
     console.log('Attendance submitted successfully');
   };
 
+  const handleTaskReportSubmit = (processedImageUris: string[]) => {
+    console.log('Submitting task report with images:', processedImageUris);
+    if (!processedImageUris.length || !taskLocation) {
+      console.log('Missing data for task report submission:', { processedImageUris: processedImageUris.length, taskLocation });
+      return;
+    }
+
+    // Use existing submitTaskReport action
+    dispatch(submitTaskReport({
+      siteId: site.id,
+      imageUris: processedImageUris,
+    }));
+    
+    setIsTaskReportModalVisible(false);
+    setCapturedTaskImages([]);
+    setTaskLocation(null);
+    Alert.alert(STRINGS.SUCCESS, `Task report submitted successfully with ${processedImageUris.length} image(s).`);
+    console.log('Task report submitted successfully');
+  };
+
+  const handleAddMoreTaskImages = () => {
+    // Close the modal first
+    setIsTaskReportModalVisible(false);
+    
+    // Show the image picker again
+    showTaskImagePicker();
+  };
+
+  const handleRemoveTaskImage = (index: number) => {
+    Alert.alert(
+      'Remove Image',
+      'Are you sure you want to remove this image?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            const updatedImages = capturedTaskImages.filter((_, i) => i !== index);
+            setCapturedTaskImages(updatedImages);
+            
+            // If no images left, close the modal
+            if (updatedImages.length === 0) {
+              setIsTaskReportModalVisible(false);
+              setTaskLocation(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Helper function to process multiple images with location overlay
-  const processTaskImagesWithOverlay = async (imageUris: string[]): Promise<string[]> => {
-    if (!taskLocation) {
-      throw new Error('Task location not available');
-    }
-
-    try {
-      const processedImages: string[] = [];
-      
-      // Capture each image with overlay using their refs
-      for (let i = 0; i < taskImageRefs.length; i++) {
-        const ref = taskImageRefs[i];
-        if (ref.current?.captureImage) {
-          const capturedUri = await ref.current.captureImage();
-          processedImages.push(capturedUri);
-        } else {
-          // Fallback to original image if ref is not available
-          processedImages.push(imageUris[i]);
-        }
-      }
-      
-      return processedImages;
-    } catch (error) {
-      console.error('Error processing task images with overlay:', error);
-      // Return original images as fallback
-      return imageUris;
-    }
-  };
-
-  const handleSubmitTaskReport = async () => {
-    if (taskImages.length === 0) return;
-
-    try {
-      // Process images with location overlay
-      const processedImages = await processTaskImagesWithOverlay(taskImages);
-      
-      dispatch(submitTaskReport({
-        siteId: site.id,
-        imageUris: processedImages,
-      }));
-      
-      setIsTaskModalVisible(false);
-      setTaskImages([]);
-      setTaskLocation(null);
-      setTaskImageRefs([]);
-      Alert.alert(STRINGS.SUCCESS, `Task report submitted with ${taskImages.length} photos`);
-    } catch (error) {
-      console.error('Error processing task images:', error);
-      Alert.alert('Error', 'Failed to process images with location overlay');
-    }
-  };
-
   const openPhotoPreview = (imageUrl: string, allImages?: string[]) => {
     if (allImages && allImages.length > 1) {
       setSelectedImages(allImages);
@@ -464,7 +472,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
           <Image source={{ uri: displayImage }} style={styles.attendanceImage} />
           {item.type === 'task' && item.imageUrls && item.imageUrls.length > 1 && (
             <View style={styles.multiImageIndicator}>
-              <Icon name="photo-library" size={16} color={COLORS.WHITE} />
+              <PhotoIcon size={16} color={COLORS.WHITE} />
               <Text style={styles.imageCountBadge}>+{item.imageUrls.length - 1}</Text>
             </View>
           )}
@@ -495,7 +503,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
         {/* Site Info */}
         <View style={styles.siteInfoCard}>
           <View style={styles.siteHeader}>
-            <Icon name="location-on" size={24} color={COLORS.PRIMARY} />
+            <MapPinIcon size={24} color={COLORS.PRIMARY} />
             <Text style={styles.siteName}>{site.name}</Text>
           </View>
           <Text style={styles.siteAddress}>{site.address}</Text>
@@ -550,7 +558,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
             />
           ) : (
             <View style={styles.emptyContainer}>
-              <Icon name="photo-camera" size={64} color={COLORS.GRAY_MEDIUM} />
+              <CameraIcon size={64} color={COLORS.GRAY_MEDIUM} />
               <Text style={styles.emptyText}>
                 No records for {activeTab === 0 ? 'this month' : 'last month'}
               </Text>
@@ -575,72 +583,23 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
         }}
       />
 
-      {/* Task Report Modal */}
-      <Modal
-        visible={isTaskModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setIsTaskModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.submissionModal}>
-            <Text style={styles.modalTitle}>Task Report Preview</Text>
-            
-            <ScrollView style={styles.taskImagesContainer} horizontal showsHorizontalScrollIndicator={false}>
-              {taskImages.map((uri, index) => (
-                <View key={index} style={styles.taskImageWrapper}>
-                  {taskLocation ? (
-                    <TaskImageWithOverlay
-                      ref={taskImageRefs[index]}
-                      imageUri={uri}
-                      latitude={taskLocation.latitude}
-                      longitude={taskLocation.longitude}
-                      timestamp={taskLocation.timestamp}
-                      address="Rohtak, Haryana, India"
-                    />
-                  ) : (
-                    <View style={styles.taskImageContainer}>
-                      <Image 
-                        source={{ uri }} 
-                        style={styles.taskImage} 
-                        resizeMode="cover"
-                      />
-                    </View>
-                  )}
-                </View>
-              ))}
-            </ScrollView>
-            
-            <Text style={styles.imageCountText}>
-              {taskImages.length} photo(s) will be submitted with location overlay
-            </Text>
-            
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.addMoreButton]} 
-                onPress={showTaskImagePicker}>
-                <Text style={styles.addMoreButtonText}>Add More</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]} 
-                onPress={() => {
-                  setIsTaskModalVisible(false);
-                  setTaskImages([]);
-                  setTaskLocation(null);
-                  setTaskImageRefs([]);
-                }}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.submitButton]} 
-                onPress={handleSubmitTaskReport}>
-                <Text style={styles.submitButtonText}>Submit</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* Task Report Submission Modal */}
+      <MultiImageLocationSubmissionModal
+        visible={isTaskReportModalVisible}
+        imageUris={capturedTaskImages}
+        latitude={taskLocation?.latitude || 0}
+        longitude={taskLocation?.longitude || 0}
+        timestamp={taskLocation?.timestamp || new Date().toISOString()}
+        title="Submit Task Report"
+        onSubmit={handleTaskReportSubmit}
+        onAddMore={handleAddMoreTaskImages}
+        onRemoveImage={handleRemoveTaskImage}
+        onCancel={() => {
+          setIsTaskReportModalVisible(false);
+          setCapturedTaskImages([]);
+          setTaskLocation(null);
+        }}
+      />
 
       {/* Photo Preview Modal */}
       <Modal
@@ -653,7 +612,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
           
           {/* Back Button */}
           <TouchableOpacity style={styles.backButton} onPress={closePhotoPreview}>
-            <Icon name="arrow-back" size={24} color={COLORS.WHITE} />
+            <ArrowLeftIcon size={24} color={COLORS.WHITE} />
             <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
 
@@ -671,11 +630,11 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route }) => {
               {selectedImages.length > 1 && (
                 <>
                   <TouchableOpacity style={styles.leftArrow} onPress={prevImage}>
-                    <Icon name="chevron-left" size={40} color={COLORS.WHITE} />
+                    <ChevronLeftIcon size={40} color={COLORS.WHITE} />
                   </TouchableOpacity>
                   
                   <TouchableOpacity style={styles.rightArrow} onPress={nextImage}>
-                    <Icon name="chevron-right" size={40} color={COLORS.WHITE} />
+                    <ChevronRightIcon size={40} color={COLORS.WHITE} />
                   </TouchableOpacity>
                   
                   {/* Image Indicator */}
@@ -720,7 +679,7 @@ const styles = StyleSheet.create({
   siteInfoCard: {
     backgroundColor: COLORS.WHITE,
     margin: SIZES.MARGIN_MEDIUM,
-    padding: SIZES.PADDING_LARGE,
+    padding: SIZES.PADDING_SMALL,
     borderRadius: SIZES.BORDER_RADIUS_LARGE,
     ...SHADOWS.MEDIUM,
   },

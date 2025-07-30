@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { AuthState, User } from '../../types';
-import { DUMMY_RESPONSES } from '../../constants/api';
+import { apiService } from '../../services/apiService';
 import { STRINGS } from '../../constants/strings';
 
 const initialState: AuthState = {
@@ -15,24 +15,55 @@ export const loginUser = createAsyncThunk(
   'auth/loginUser',
   async ({ username, password }: { username: string; password: string }, { rejectWithValue }) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiService.login(username, password);
       
-      // Mock authentication logic
-      if (username === 'admin' && password === 'admin123') {
-        return DUMMY_RESPONSES.LOGIN_SUCCESS.data.user;
-      } else if (username === 'user' && password === 'user123') {
-        // User with role 1 (single site access)
-        return {
-          ...DUMMY_RESPONSES.LOGIN_SUCCESS.data.user,
-          role: 1,
-          siteId: 1,
+      if (response.success && response.data) {
+        // Map API response to our User type
+        const user: User = {
+          id: parseInt(response.data.user_id) || 1, // Convert string to number
+          username: response.data.email,
+          name: response.data.name,
+          role: response.data.role === 'admin' ? 2 : 1, // Map role string to number
+          token: response.data.access_token,
         };
+        return user;
       } else {
-        return rejectWithValue(STRINGS.LOGIN_ERROR);
+        return rejectWithValue(response.error || STRINGS.LOGIN_ERROR);
       }
-    } catch (error) {
-      return rejectWithValue(STRINGS.LOGIN_ERROR);
+    } catch (error: any) {
+      return rejectWithValue(error.message || STRINGS.LOGIN_ERROR);
+    }
+  }
+);
+
+// Async thunk to load user from storage
+export const loadUserFromStorage = createAsyncThunk(
+  'auth/loadUserFromStorage',
+  async (_, { rejectWithValue }) => {
+    try {
+      const userData = await apiService.getStoredUserData();
+      if (userData) {
+        return userData;
+      } else {
+        return rejectWithValue('No stored user data');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to load user data');
+    }
+  }
+);
+
+// Async thunk for logout
+export const logoutUser = createAsyncThunk(
+  'auth/logoutUser',
+  async (_, { rejectWithValue }) => {
+    try {
+      await apiService.logout();
+      return null;
+    } catch (error: any) {
+      // Continue with logout even if API call fails
+      console.warn('Logout error:', error);
+      return null;
     }
   }
 );
@@ -53,6 +84,7 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // Login cases
       .addCase(loginUser.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -68,6 +100,40 @@ const authSlice = createSlice({
         state.error = action.payload as string;
         state.isAuthenticated = false;
         state.user = null;
+      })
+      // Load user from storage cases
+      .addCase(loadUserFromStorage.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(loadUserFromStorage.fulfilled, (state, action: PayloadAction<User>) => {
+        state.isLoading = false;
+        state.user = action.payload;
+        state.isAuthenticated = true;
+        state.error = null;
+      })
+      .addCase(loadUserFromStorage.rejected, (state) => {
+        state.isLoading = false;
+        // Don't set error for storage loading failure
+        state.isAuthenticated = false;
+        state.user = null;
+      })
+      // Logout cases
+      .addCase(logoutUser.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(logoutUser.fulfilled, (state) => {
+        state.isLoading = false;
+        state.user = null;
+        state.isAuthenticated = false;
+        state.error = null;
+      })
+      .addCase(logoutUser.rejected, (state) => {
+        state.isLoading = false;
+        // Still logout locally even if API call fails
+        state.user = null;
+        state.isAuthenticated = false;
+        state.error = null;
       });
   },
 });

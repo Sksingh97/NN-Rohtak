@@ -1,22 +1,44 @@
-const BASE_URL = 'https://api.nagarnigam.com'; // Replace with actual API base URL
+const BASE_URL = 'https://endlessly-helpful-oarfish.ngrok-free.app/api';
+
+export const API_CONFIG = {
+  BASE_URL,
+  TIMEOUT: 30000, // 30 seconds
+} as const;
 
 export const API_ENDPOINTS = {
   // Authentication
-  LOGIN: `${BASE_URL}/auth/login`,
-  LOGOUT: `${BASE_URL}/auth/logout`,
+  AUTH: {
+    LOGIN: '/auth/login',
+    REFRESH: '/auth/refresh',
+    LOGOUT: '/auth/logout',
+  },
   
   // Sites
-  GET_ALL_SITES: `${BASE_URL}/sites/all`,
-  GET_MY_SITES: `${BASE_URL}/sites/my`,
-  SEARCH_SITES: `${BASE_URL}/sites/search`,
+  SITES: {
+    ALL: '/sites/all',
+    MY_SITES: '/sites/my',
+    SEARCH: '/sites/search',
+    DETAILS: '/sites',
+  },
   
   // Attendance
-  MARK_ATTENDANCE: `${BASE_URL}/attendance/mark`,
-  GET_ATTENDANCE_TODAY: `${BASE_URL}/attendance/today`,
-  GET_ATTENDANCE_MONTH: `${BASE_URL}/attendance/month`,
+  ATTENDANCE: {
+    MARK: '/attendance/mark',
+    TODAY: '/attendance/today',
+    MONTH: '/attendance/month',
+  },
+  
+  // Tasks
+  TASKS: {
+    SUBMIT: '/tasks/submit',
+    TODAY: '/tasks/today',
+    MONTH: '/tasks/month',
+  },
   
   // User
-  GET_USER_PROFILE: `${BASE_URL}/user/profile`,
+  USER: {
+    PROFILE: '/user/profile',
+  },
 };
 
 // Dummy API responses for development

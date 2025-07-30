@@ -12,7 +12,12 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import {
+  ChevronRightIcon,
+  MapPinIcon,
+  ArrowRightOnRectangleIcon,
+  MagnifyingGlassIcon,
+} from 'react-native-heroicons/outline';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { RootState, AppDispatch } from '../store';
 import { Site } from '../types';
@@ -21,7 +26,7 @@ import {
   fetchMySites,
   setSearchQuery,
 } from '../store/slices/siteSlice';
-import { logout } from '../store/slices/authSlice';
+import { logout, logoutUser } from '../store/slices/authSlice';
 import { withLoader } from '../components/Loader';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS } from '../constants/strings';
@@ -68,7 +73,7 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', onPress: () => dispatch(logout()) },
+        { text: 'Logout', onPress: () => dispatch(logoutUser()) },
       ]
     );
   };
@@ -92,13 +97,13 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
         <Text style={styles.siteName}>{item.name}</Text>
         <Text style={styles.siteAddress}>{item.address}</Text>
       </View>
-      <Icon name="chevron-right" size={24} color={COLORS.GRAY_MEDIUM} />
+      <ChevronRightIcon size={24} color={COLORS.GRAY_MEDIUM} />
     </TouchableOpacity>
   );
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
-      <Icon name="location-off" size={64} color={COLORS.GRAY_MEDIUM} />
+      <MapPinIcon size={64} color={COLORS.GRAY_MEDIUM} />
       <Text style={styles.emptyText}>{STRINGS.NO_SITES_FOUND}</Text>
     </View>
   );
@@ -112,13 +117,13 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
           <Text style={styles.headerSubtitle}>Welcome, {user?.name}</Text>
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Icon name="logout" size={24} color={COLORS.ERROR} />
+          <ArrowRightOnRectangleIcon size={24} color={COLORS.ERROR} />
         </TouchableOpacity>
       </View>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Icon name="search" size={20} color={COLORS.GRAY_MEDIUM} style={styles.searchIcon} />
+        <MagnifyingGlassIcon size={20} color={COLORS.GRAY_MEDIUM} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder={STRINGS.SEARCH_SITES}
