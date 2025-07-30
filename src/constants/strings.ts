@@ -1,10 +1,10 @@
 export const STRINGS = {
   // Auth Screen
   LOGIN: 'Login',
-  USERNAME: 'Username',
+  MOBILE: 'Mobile Number',
   PASSWORD: 'Password',
   LOGIN_BUTTON: 'Login',
-  LOGIN_ERROR: 'Invalid username or password',
+  LOGIN_ERROR: 'Invalid mobile number or password',
   
   // Site List Screen
   SITE_LIST: 'Site List',

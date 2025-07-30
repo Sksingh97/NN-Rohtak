@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -28,9 +27,9 @@ interface LoginScreenProps {
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
-  const [username, setUsername] = useState('');
+  const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
-  const [usernameError, setUsernameError] = useState('');
+  const [mobileError, setMobileError] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
   const dispatch = useDispatch<AppDispatch>();
@@ -55,11 +54,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const validateForm = () => {
     let isValid = true;
     
-    if (!username.trim()) {
-      setUsernameError('Username is required');
+    if (!mobile.trim()) {
+      setMobileError('Mobile number is required');
       isValid = false;
     } else {
-      setUsernameError('');
+      setMobileError('');
     }
 
     if (!password.trim()) {
@@ -74,7 +73,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   const handleLogin = () => {
     if (validateForm()) {
-      dispatch(loginUser({ username: username.trim(), password }));
+      dispatch(loginUser({ mobile: mobile.trim(), password }));
     }
   };
 
@@ -98,12 +97,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             <Text style={styles.loginTitle}>{STRINGS.LOGIN}</Text>
             
             <Input
-              label={STRINGS.USERNAME}
-              value={username}
-              onChangeText={setUsername}
-              placeholder="Enter your username"
+              label="Mobile Number"
+              value={mobile}
+              onChangeText={setMobile}
+              placeholder="Enter your mobile number"
               autoCapitalize="none"
-              error={usernameError}
+              keyboardType="phone-pad"
+              error={mobileError}
             />
 
             <Input
@@ -122,11 +122,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               style={styles.loginButton}
             />
 
-            <View style={styles.credentialsContainer}>
-              <Text style={styles.credentialsTitle}>Demo Credentials:</Text>
-              <Text style={styles.credentialsText}>Admin: admin / admin123</Text>
-              <Text style={styles.credentialsText}>User: user / user123</Text>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

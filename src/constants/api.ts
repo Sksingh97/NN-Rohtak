@@ -48,10 +48,23 @@ export const DUMMY_RESPONSES = {
     data: {
       user: {
         id: 1,
-        username: 'admin',
+        mobile: '0000000000',
         name: 'John Doe',
-        role: 2, // 1 for single site access, 2 for multiple sites
+        role: 'supervisor', // Changed to string role
         token: 'dummy_jwt_token_12345',
+      },
+    },
+  },
+
+  LOGIN_SUCCESS_WORKER: {
+    success: true,
+    data: {
+      user: {
+        id: 2,
+        mobile: '1111111111',
+        name: 'Jane Smith',
+        role: 'worker',
+        token: 'dummy_jwt_token_67890',
       },
     },
   },

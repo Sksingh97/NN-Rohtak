@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { SiteState, Site } from '../../types';
-import { DUMMY_RESPONSES } from '../../constants/api';
+import { apiService } from '../../services/apiService';
 
 const initialState: SiteState = {
   allSites: [],
@@ -10,39 +10,38 @@ const initialState: SiteState = {
   searchQuery: '',
 };
 
-// Async thunk for fetching all sites
+// Async thunk for fetching all sites (for supervisor)
 export const fetchAllSites = createAsyncThunk(
   'sites/fetchAllSites',
   async (_, { rejectWithValue }) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return DUMMY_RESPONSES.SITES_LIST.data.sites;
-    } catch (error) {
-      return rejectWithValue('Failed to fetch sites');
+      const response = await apiService.getSites();
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch sites');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch sites');
     }
   }
 );
 
-// Async thunk for fetching user's sites
+// Async thunk for fetching user's sites (for worker - same API, different usage)
 export const fetchMySites = createAsyncThunk(
   'sites/fetchMySites',
   async (userId: number, { rejectWithValue }) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Filter sites based on user role/access
-      const allSites = DUMMY_RESPONSES.SITES_LIST.data.sites;
-      if (userId === 1) {
-        // Admin sees all sites
-        return allSites;
+      const response = await apiService.getSites();
+      if (response.success && response.data) {
+        // For now, worker sees all sites from the API
+        // In the future, you might want to filter based on worker assignment
+        return response.data;
       } else {
-        // Regular user sees limited sites
-        return allSites.filter((site: Site) => site.id <= 2);
+        return rejectWithValue(response.error || 'Failed to fetch user sites');
       }
-    } catch (error) {
-      return rejectWithValue('Failed to fetch user sites');
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch user sites');
     }
   }
 );

@@ -26,7 +26,8 @@ export interface LoginResponse {
   user_id: string;
   role: string;
   name: string;
-  email: string;
+  email?: string; // Keep for backward compatibility
+  mobile?: string; // New mobile field
 }
 
 // Request configuration
@@ -60,14 +61,15 @@ class ApiService {
   // Store tokens and user data
   public async storeAuthData(loginResponse: LoginResponse): Promise<void> {
     try {
+      const userRole = loginResponse.role?.toLowerCase();
       await AsyncStorage.multiSet([
         [STORAGE_KEYS.ACCESS_TOKEN, loginResponse.access_token],
         [STORAGE_KEYS.REFRESH_TOKEN, loginResponse.refresh_token],
         [STORAGE_KEYS.USER_DATA, JSON.stringify({
           id: loginResponse.user_id,
           name: loginResponse.name,
-          email: loginResponse.email,
-          role: loginResponse.role === 'admin' ? 2 : 1, // Map role to numbers
+          mobile: loginResponse.mobile || loginResponse.email || '', // Use mobile field first, fallback to email
+          role: userRole === 'supervisor' ? 2 : 1, // Map supervisor to 2, worker to 1
         })],
       ]);
     } catch (error) {
@@ -112,7 +114,7 @@ class ApiService {
     if (requiresAuth) {
       const accessToken = await this.getAccessToken();
       if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
+        headers.Authorization = `Bearer ${accessToken}`;
       }
     }
 
@@ -211,15 +213,32 @@ class ApiService {
   }
 
   // Login method
-  public async login(email: string, password: string): Promise<ApiResponse<LoginResponse>> {
+  public async login(mobile: string, password: string): Promise<ApiResponse<LoginResponse>> {
     const response = await this.post<LoginResponse>(
       '/auth/login',
-      { email, password },
+      { mobile, password }, // Send mobile field in payload
       undefined,
       false // Login doesn't require auth
     );
 
     if (response.success && response.data) {
+      // Validate role before storing auth data
+      if (!response.data.role) {
+        return {
+          error: 'User role not found. Please contact administrator.',
+          success: false,
+        };
+      }
+
+      const userRole = response.data.role.toLowerCase();
+      if (userRole !== 'worker' && userRole !== 'supervisor') {
+        return {
+          error: 'You are not authorized to access this app. Only workers and supervisors are allowed.',
+          success: false,
+        };
+      }
+
+      // Only store auth data if role is valid
       await this.storeAuthData(response.data);
     }
 
@@ -238,6 +257,11 @@ class ApiService {
       // Always clear local storage
       await this.clearAuthData();
     }
+  }
+
+  // Sites method
+  public async getSites(): Promise<ApiResponse<any[]>> {
+    return this.get('/sites/');
   }
 }
 

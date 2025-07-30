@@ -13,17 +13,27 @@ const initialState: AuthState = {
 // Async thunk for login
 export const loginUser = createAsyncThunk(
   'auth/loginUser',
-  async ({ username, password }: { username: string; password: string }, { rejectWithValue }) => {
+  async ({ mobile, password }: { mobile: string; password: string }, { rejectWithValue }) => {
     try {
-      const response = await apiService.login(username, password);
+      const response = await apiService.login(mobile, password);
       
       if (response.success && response.data) {
+        // Check if role exists and is authorized
+        if (!response.data.role) {
+          return rejectWithValue('User role not found. Please contact administrator.');
+        }
+
+        const userRole = response.data.role.toLowerCase();
+        if (userRole !== 'worker' && userRole !== 'supervisor') {
+          return rejectWithValue('You are not authorized to access this app. Only workers and supervisors are allowed.');
+        }
+
         // Map API response to our User type
         const user: User = {
-          id: parseInt(response.data.user_id) || 1, // Convert string to number
-          username: response.data.email,
+          id: parseInt(response.data.user_id, 10) || 1, // Convert string to number with radix
+          mobile: response.data.mobile || response.data.email || '', // Use mobile field first, fallback to email
           name: response.data.name,
-          role: response.data.role === 'admin' ? 2 : 1, // Map role string to number
+          role: userRole === 'supervisor' ? 2 : 1, // Map supervisor to 2, worker to 1
           token: response.data.access_token,
         };
         return user;
@@ -39,16 +49,16 @@ export const loginUser = createAsyncThunk(
 // Async thunk to load user from storage
 export const loadUserFromStorage = createAsyncThunk(
   'auth/loadUserFromStorage',
-  async (_, { rejectWithValue }) => {
+  async () => {
     try {
       const userData = await apiService.getStoredUserData();
       if (userData) {
         return userData;
       } else {
-        return rejectWithValue('No stored user data');
+        throw new Error('No stored user data');
       }
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to load user data');
+      throw new Error(error.message || 'Failed to load user data');
     }
   }
 );
