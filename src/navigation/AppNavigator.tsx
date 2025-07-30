@@ -1,0 +1,62 @@
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { useSelector } from 'react-redux';
+import { Site } from '../types';
+import { RootState } from '../store';
+import LoginScreen from '../screens/LoginScreen';
+import SiteListScreen from '../screens/SiteListScreen';
+import SiteDetailScreen from '../screens/SiteDetailScreen';
+import { COLORS } from '../constants/theme';
+
+export type RootStackParamList = {
+  Login: undefined;
+  SiteList: undefined;
+  SiteDetail: { site: Site };
+};
+
+const Stack = createStackNavigator<RootStackParamList>();
+
+const AppNavigator: React.FC = () => {
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: COLORS.PRIMARY,
+          },
+          headerTintColor: COLORS.WHITE,
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}>
+        {!isAuthenticated ? (
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+        ) : (
+          <>
+            <Stack.Screen
+              name="SiteList"
+              component={SiteListScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="SiteDetail"
+              component={SiteDetailScreen}
+              options={{
+                title: 'Site Details',
+              }}
+            />
+          </>
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
+
+export default AppNavigator;
