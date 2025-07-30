@@ -30,7 +30,7 @@ export const loginUser = createAsyncThunk(
 
         // Map API response to our User type
         const user: User = {
-          id: parseInt(response.data.user_id, 10) || 1, // Convert string to number with radix
+          id: response.data.user_id, // Use UUID string directly from API
           mobile: response.data.mobile || response.data.email || '', // Use mobile field first, fallback to email
           name: response.data.name,
           role: userRole === 'supervisor' ? 2 : 1, // Map supervisor to 2, worker to 1

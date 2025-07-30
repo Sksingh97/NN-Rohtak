@@ -6,10 +6,10 @@ import {
   Modal,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import { ImageWithLocationOverlay } from './ImageWithLocationOverlay';
+import { showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { reverseGeocode } from '../utils/imageUtils';
 
@@ -62,7 +62,7 @@ export const LocationSubmissionModal: React.FC<LocationSubmissionModalProps> = (
     console.log('LocationSubmissionModal handleSubmit called');
     if (!imageUri || !viewShotRef.current?.capture) {
       console.log('Missing data for submit:', { imageUri, viewShotRef: !!viewShotRef.current });
-      Alert.alert('Error', 'Image not available for processing');
+      showErrorToast('Image not available for processing');
       return;
     }
 
@@ -74,7 +74,7 @@ export const LocationSubmissionModal: React.FC<LocationSubmissionModalProps> = (
       onSubmit(capturedImageUri);
     } catch (error) {
       console.error('Error capturing image:', error);
-      Alert.alert('Error', 'Failed to process image with location overlay');
+      showErrorToast('Failed to process image with location overlay');
     } finally {
       setIsCapturing(false);
     }

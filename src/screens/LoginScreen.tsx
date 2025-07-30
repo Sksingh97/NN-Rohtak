@@ -6,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +16,7 @@ import { loginUser, clearError } from '../store/slices/authSlice';
 import { withLoader } from '../components/Loader';
 import Button from '../components/Button';
 import Input from '../components/Input';
+import { showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS } from '../constants/strings';
 
@@ -45,9 +45,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     if (error) {
-      Alert.alert(STRINGS.ERROR, error, [
-        { text: 'OK', onPress: () => dispatch(clearError()) }
-      ]);
+      showErrorToast(error);
+      dispatch(clearError());
     }
   }, [error, dispatch]);
 
@@ -87,9 +86,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           keyboardShouldPersistTaps="handled">
           <View style={styles.logoContainer}>
             <View style={styles.logoPlaceholder}>
-              <Text style={styles.logoText}>NN</Text>
+              <Text style={styles.logoText}>SBM</Text>
             </View>
-            <Text style={styles.title}>Nagar Nigam</Text>
+            <Text style={styles.title}>Swachh Bharat Mission</Text>
             <Text style={styles.subtitle}>Rohtak</Text>
           </View>
 

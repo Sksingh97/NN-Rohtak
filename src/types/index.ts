@@ -1,5 +1,5 @@
 export interface User {
-  id: number;
+  id: string; // Changed to string to handle UUID from API
   mobile: string;
   name: string;
   role: number;
@@ -19,14 +19,17 @@ export interface Site {
 }
 
 export interface AttendanceRecord {
-  id: number;
-  siteId: string; // Changed to string to match Site.id
-  imageUrl: string;
-  imageUrls?: string[]; // For task reports with multiple images
+  id: string; // UUID from API
+  user_id: string;
+  site_id: string;
+  description: string;
+  lat: number;
+  lng: number;
+  image_url: string;
+  filename: string;
   timestamp: string;
-  latitude: number;
-  longitude: number;
-  type: 'attendance' | 'task'; // Distinguish between attendance and task report
+  file_size: number | null;
+  mime_type: string | null;
 }
 
 export interface TaskReportRecord {
@@ -56,8 +59,8 @@ export interface SiteState {
 export interface AttendanceState {
   todayAttendance: AttendanceRecord[];
   monthAttendance: AttendanceRecord[];
-  todayTasks: TaskReportRecord[];
-  monthTasks: TaskReportRecord[];
+  todayTasks: AttendanceRecord[];
+  monthTasks: AttendanceRecord[];
   isLoading: boolean;
   isMarkingAttendance: boolean;
   isSubmittingTask: boolean;

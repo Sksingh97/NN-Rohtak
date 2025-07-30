@@ -6,13 +6,13 @@ import {
   Modal,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   ScrollView,
   Dimensions,
 } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import { XMarkIcon, MapPinIcon } from 'react-native-heroicons/outline';
 import { ImageWithLocationOverlay } from './ImageWithLocationOverlay';
+import { showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { reverseGeocode } from '../utils/imageUtils';
 
@@ -75,7 +75,7 @@ export const MultiImageLocationSubmissionModal: React.FC<MultiImageLocationSubmi
   const handleSubmit = async () => {
     console.log('MultiImageLocationSubmissionModal handleSubmit called');
     if (imageUris.length === 0) {
-      Alert.alert('Error', 'No images to process');
+      showErrorToast('No images to process');
       return;
     }
 
@@ -101,7 +101,7 @@ export const MultiImageLocationSubmissionModal: React.FC<MultiImageLocationSubmi
       onSubmit(processedImages);
     } catch (error) {
       console.error('Error capturing images:', error);
-      Alert.alert('Error', 'Failed to process images with location overlay');
+      showErrorToast('Failed to process images with location overlay');
     } finally {
       setIsCapturing(false);
     }

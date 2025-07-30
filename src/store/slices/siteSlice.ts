@@ -30,7 +30,7 @@ export const fetchAllSites = createAsyncThunk(
 // Async thunk for fetching user's sites (for worker - same API, different usage)
 export const fetchMySites = createAsyncThunk(
   'sites/fetchMySites',
-  async (userId: number, { rejectWithValue }) => {
+  async (userId: string, { rejectWithValue }) => {
     try {
       const response = await apiService.getSites();
       if (response.success && response.data) {

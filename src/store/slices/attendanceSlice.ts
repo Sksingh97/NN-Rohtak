@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { AttendanceState, AttendanceRecord } from '../../types';
-import { DUMMY_RESPONSES } from '../../constants/api';
+import { apiService } from '../../services/apiService';
 
 const initialState: AttendanceState = {
   todayAttendance: [],
@@ -16,18 +16,17 @@ const initialState: AttendanceState = {
 // Async thunk for fetching today's attendance
 export const fetchTodayAttendance = createAsyncThunk(
   'attendance/fetchTodayAttendance',
-  async (userId: number, { rejectWithValue }) => {
+  async (userId: string, { rejectWithValue }) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiService.getTodayAttendance(userId);
       
-      // Filter today's attendance records
-      const today = new Date().toDateString();
-      return DUMMY_RESPONSES.ATTENDANCE_TODAY.data.attendance.filter(
-        (record: any) => new Date(record.timestamp).toDateString() === today
-      ) as AttendanceRecord[];
-    } catch (error) {
-      return rejectWithValue('Failed to fetch today\'s attendance');
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch today\'s attendance');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch today\'s attendance');
     }
   }
 );
@@ -35,13 +34,17 @@ export const fetchTodayAttendance = createAsyncThunk(
 // Async thunk for fetching month attendance
 export const fetchMonthAttendance = createAsyncThunk(
   'attendance/fetchMonthAttendance',
-  async (userId: number, { rejectWithValue }) => {
+  async (userId: string, { rejectWithValue }) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return DUMMY_RESPONSES.ATTENDANCE_MONTH.data.attendance as AttendanceRecord[];
-    } catch (error) {
-      return rejectWithValue('Failed to fetch month attendance');
+      const response = await apiService.getMonthAttendance(userId);
+      
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch month attendance');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch month attendance');
     }
   }
 );
@@ -49,18 +52,17 @@ export const fetchMonthAttendance = createAsyncThunk(
 // Async thunk for fetching today's tasks
 export const fetchTodayTasks = createAsyncThunk(
   'attendance/fetchTodayTasks',
-  async (userId: number, { rejectWithValue }) => {
+  async (userId: string, { rejectWithValue }) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiService.getTodayTasks(userId);
       
-      // Filter today's task records
-      const today = new Date().toDateString();
-      return DUMMY_RESPONSES.TASKS_TODAY.data.tasks.filter(
-        (record: any) => new Date(record.timestamp).toDateString() === today
-      ) as AttendanceRecord[];
-    } catch (error) {
-      return rejectWithValue('Failed to fetch today\'s tasks');
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch today\'s tasks');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch today\'s tasks');
     }
   }
 );
@@ -68,13 +70,17 @@ export const fetchTodayTasks = createAsyncThunk(
 // Async thunk for fetching month tasks
 export const fetchMonthTasks = createAsyncThunk(
   'attendance/fetchMonthTasks',
-  async (userId: number, { rejectWithValue }) => {
+  async (userId: string, { rejectWithValue }) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return DUMMY_RESPONSES.TASKS_MONTH.data.tasks as AttendanceRecord[];
-    } catch (error) {
-      return rejectWithValue('Failed to fetch month tasks');
+      const response = await apiService.getMonthTasks(userId);
+      
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch month tasks');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch month tasks');
     }
   }
 );
@@ -83,31 +89,31 @@ export const fetchMonthTasks = createAsyncThunk(
 export const submitTaskReport = createAsyncThunk(
   'attendance/submitTaskReport',
   async (
-    { siteId, imageUris }: {
-      siteId: number;
+    { siteId, imageUris, latitude, longitude, description }: {
+      siteId: string;
       imageUris: string[];
+      latitude?: number;
+      longitude?: number; 
+      description?: string;
     },
     { rejectWithValue }
   ) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Create new task record
-      const newRecord: AttendanceRecord = {
-        id: Date.now(),
+      const response = await apiService.submitTaskReport(
         siteId,
-        timestamp: new Date().toISOString(),
-        imageUrl: imageUris[0], // First image for display
-        imageUrls: imageUris, // All images
-        latitude: 28.8945, // Would get from location in real app
-        longitude: 76.6066,
-        type: 'task',
-      };
+        imageUris,
+        latitude || 0,
+        longitude || 0,
+        description || 'Task completed'
+      );
       
-      return newRecord;
-    } catch (error) {
-      return rejectWithValue('Failed to submit task report');
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        return rejectWithValue(response.error || 'Failed to submit task report');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to submit task report');
     }
   }
 );
@@ -116,32 +122,31 @@ export const submitTaskReport = createAsyncThunk(
 export const markAttendance = createAsyncThunk(
   'attendance/markAttendance',
   async (
-    { siteId, imageUri, latitude, longitude }: {
-      siteId: number;
+    { siteId, imageUri, latitude, longitude, description }: {
+      siteId: string;
       imageUri: string;
       latitude: number;
       longitude: number;
+      description: string;
     },
     { rejectWithValue }
   ) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Create new attendance record
-      const newRecord: AttendanceRecord = {
-        id: Date.now(),
+      const response = await apiService.markAttendance(
         siteId,
-        timestamp: new Date().toISOString(),
-        imageUrl: imageUri,
         latitude,
         longitude,
-        type: 'attendance',
-      };
+        description,
+        imageUri
+      );
       
-      return newRecord;
-    } catch (error) {
-      return rejectWithValue('Failed to mark attendance');
+      if (response.success && response.data) {
+        return response.data as AttendanceRecord;
+      } else {
+        return rejectWithValue(response.error || 'Failed to mark attendance');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to mark attendance');
     }
   }
 );

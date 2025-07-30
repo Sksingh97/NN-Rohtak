@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_CONFIG } from '../constants/api';
+import { API_CONFIG, API_ENDPOINTS } from '../constants/api';
+import { AttendanceRecord } from '../types';
 
 // Storage keys
 export const STORAGE_KEYS = {
@@ -62,18 +63,30 @@ class ApiService {
   public async storeAuthData(loginResponse: LoginResponse): Promise<void> {
     try {
       const userRole = loginResponse.role?.toLowerCase();
+      const userData = {
+        id: loginResponse.user_id,
+        name: loginResponse.name,
+        mobile: loginResponse.mobile || loginResponse.email || '',
+        role: userRole === 'supervisor' ? 2 : 1,
+      };
+
+      // 📝 LOG STORAGE
+      console.warn('💾 STORING AUTH DATA:', JSON.stringify({
+        user_id: loginResponse.user_id,
+        role: userRole,
+        mobile: userData.mobile,
+        timestamp: new Date().toISOString(),
+      }, null, 2));
+
       await AsyncStorage.multiSet([
         [STORAGE_KEYS.ACCESS_TOKEN, loginResponse.access_token],
         [STORAGE_KEYS.REFRESH_TOKEN, loginResponse.refresh_token],
-        [STORAGE_KEYS.USER_DATA, JSON.stringify({
-          id: loginResponse.user_id,
-          name: loginResponse.name,
-          mobile: loginResponse.mobile || loginResponse.email || '', // Use mobile field first, fallback to email
-          role: userRole === 'supervisor' ? 2 : 1, // Map supervisor to 2, worker to 1
-        })],
+        [STORAGE_KEYS.USER_DATA, JSON.stringify(userData)],
       ]);
+
+      console.warn('✅ AUTH DATA STORED SUCCESSFULLY');
     } catch (error) {
-      console.error('Error storing auth data:', error);
+      console.error('💥 ERROR STORING AUTH DATA:', error);
       throw error;
     }
   }
@@ -82,9 +95,23 @@ class ApiService {
   public async getStoredUserData(): Promise<any | null> {
     try {
       const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
-      return userData ? JSON.parse(userData) : null;
+      const result = userData ? JSON.parse(userData) : null;
+      
+      // 📝 LOG STORAGE RETRIEVAL
+      if (result) {
+        console.warn('📱 LOADED USER DATA FROM STORAGE:', JSON.stringify({
+          id: result.id,
+          mobile: result.mobile,
+          role: result.role,
+          timestamp: new Date().toISOString(),
+        }, null, 2));
+      } else {
+        console.warn('📱 NO USER DATA FOUND IN STORAGE');
+      }
+      
+      return result;
     } catch (error) {
-      console.error('Error getting stored user data:', error);
+      console.error('💥 ERROR GETTING STORED USER DATA:', error);
       return null;
     }
   }
@@ -92,13 +119,20 @@ class ApiService {
   // Clear stored auth data
   public async clearAuthData(): Promise<void> {
     try {
+      // 📝 LOG AUTH CLEAR
+      console.warn('🗑️ CLEARING AUTH DATA:', JSON.stringify({
+        timestamp: new Date().toISOString(),
+      }, null, 2));
+
       await AsyncStorage.multiRemove([
         STORAGE_KEYS.ACCESS_TOKEN,
         STORAGE_KEYS.REFRESH_TOKEN,
         STORAGE_KEYS.USER_DATA,
       ]);
+
+      console.warn('✅ AUTH DATA CLEARED SUCCESSFULLY');
     } catch (error) {
-      console.error('Error clearing auth data:', error);
+      console.error('💥 ERROR CLEARING AUTH DATA:', error);
       throw error;
     }
   }
@@ -108,6 +142,8 @@ class ApiService {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'ngrok-skip-browser-warning': 'true', // Skip ngrok warning in headers
+      'User-Agent': 'app/1.0', 
       ...customHeaders,
     };
 
@@ -139,17 +175,38 @@ class ApiService {
         requestConfig.body = JSON.stringify(data);
       }
 
+      // 📝 LOG REQUEST
+      console.warn('🚀 API REQUEST:', JSON.stringify({
+        method,
+        url,
+        headers: {
+          ...headers,
+          Authorization: headers.Authorization ? 'Bearer ***' : undefined, // Hide token in logs
+        },
+        body: method !== 'GET' && data ? data : undefined,
+        timestamp: new Date().toISOString(),
+      }, null, 2));
+
+      // Also use console.log for debugging
+      console.log('\n=== API REQUEST START ===');
+      console.log('Method:', method);
+      console.log('URL:', url);
+      console.log('Has Auth Token:', !!headers.Authorization);
+      console.log('=== API REQUEST END ===\n');
+
       // Create abort controller for timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       try {
+        const requestStartTime = Date.now();
         const response = await fetch(url, {
           ...requestConfig,
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
+        const requestDuration = Date.now() - requestStartTime;
 
         // Parse response
         let responseData: any;
@@ -159,6 +216,32 @@ class ApiService {
           responseData = await response.json();
         } else {
           responseData = await response.text();
+        }
+
+        // 📝 LOG RESPONSE
+        if (response.ok) {
+          console.warn('✅ API RESPONSE SUCCESS:', JSON.stringify({
+            method,
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${requestDuration}ms`,
+            contentType,
+            data: responseData,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+        } else {
+          console.error('❌ API RESPONSE ERROR:', JSON.stringify({
+            method,
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${requestDuration}ms`,
+            contentType,
+            error: responseData?.message || responseData,
+            fullResponse: responseData,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
         }
 
         if (!response.ok) {
@@ -176,6 +259,15 @@ class ApiService {
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         
+        // 📝 LOG FETCH ERROR
+        console.error('🔥 API REQUEST FAILED:', JSON.stringify({
+          method,
+          url,
+          error: fetchError.message,
+          errorType: fetchError.name,
+          timestamp: new Date().toISOString(),
+        }, null, 2));
+        
         if (fetchError.name === 'AbortError') {
           throw new Error('Request timeout');
         }
@@ -183,7 +275,15 @@ class ApiService {
       }
 
     } catch (error: any) {
-      console.error('API Request Error:', error);
+      // 📝 LOG GENERAL ERROR
+      console.error('💥 API REQUEST ERROR:', {
+        method,
+        endpoint,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      });
+      
       return {
         error: error.message || 'Network request failed',
         success: false,
@@ -214,8 +314,14 @@ class ApiService {
 
   // Login method
   public async login(mobile: string, password: string): Promise<ApiResponse<LoginResponse>> {
+    // 📝 LOG LOGIN ATTEMPT
+    console.warn('🔐 LOGIN REQUEST:', JSON.stringify({
+      mobile,
+      password: '***' // Hide password in logs
+    }, null, 2));
+
     const response = await this.post<LoginResponse>(
-      '/auth/login',
+      API_ENDPOINTS.AUTH.LOGIN,
       { mobile, password }, // Send mobile field in payload
       undefined,
       false // Login doesn't require auth
@@ -224,6 +330,7 @@ class ApiService {
     if (response.success && response.data) {
       // Validate role before storing auth data
       if (!response.data.role) {
+        console.warn('❌ LOGIN ROLE ERROR: Role not found in response');
         return {
           error: 'User role not found. Please contact administrator.',
           success: false,
@@ -232,6 +339,7 @@ class ApiService {
 
       const userRole = response.data.role.toLowerCase();
       if (userRole !== 'worker' && userRole !== 'supervisor') {
+        console.warn('❌ LOGIN ROLE ERROR: Unauthorized role:', userRole);
         return {
           error: 'You are not authorized to access this app. Only workers and supervisors are allowed.',
           success: false,
@@ -239,6 +347,7 @@ class ApiService {
       }
 
       // Only store auth data if role is valid
+      console.warn('✅ LOGIN SUCCESS: Storing auth data for role:', userRole);
       await this.storeAuthData(response.data);
     }
 
@@ -249,7 +358,7 @@ class ApiService {
   public async logout(): Promise<void> {
     try {
       // Call logout endpoint if needed
-      await this.post('/auth/logout');
+      await this.post(API_ENDPOINTS.AUTH.LOGOUT);
     } catch (error) {
       // Continue with logout even if API call fails
       console.warn('Logout API call failed:', error);
@@ -261,7 +370,232 @@ class ApiService {
 
   // Sites method
   public async getSites(): Promise<ApiResponse<any[]>> {
-    return this.get('/sites/');
+    return this.get(API_ENDPOINTS.SITES.LIST);
+  }
+
+  // Mark attendance method
+  public async markAttendance(
+    site_id: string,
+    latitude: number,
+    longitude: number,
+    description: string,
+    imageUri: string
+  ): Promise<ApiResponse<any>> {
+    console.warn('📸 MARK ATTENDANCE CALLED WITH:', JSON.stringify({
+      site_id,
+      latitude,
+      longitude,
+      description,
+      imageUri,
+    }, null, 2));
+
+    try {
+      // Create FormData for file upload
+      const formData = new FormData();
+      
+      // For React Native, the file object needs to be structured properly
+      const fileObject = {
+        uri: imageUri,
+        type: 'image/jpeg', // Use JPEG which is more compatible
+        name: `attendance_${Date.now()}.jpg`,
+      };
+      
+      formData.append('file', fileObject as any);
+
+      console.warn('📸 FORM DATA FILE:', JSON.stringify(fileObject, null, 2));
+
+      // Create query params
+      const queryParams = new URLSearchParams({
+        site_id,
+        latitude: latitude.toString(),
+        longitude: longitude.toString(),
+        description,
+      });
+
+      const url = `${this.baseURL}${API_ENDPOINTS.ATTENDANCE.MARK}?${queryParams.toString()}`;
+      // Don't set Content-Type for FormData - let the browser set it with boundary
+      const headers = await this.generateHeaders({}, true);
+      // Remove Content-Type for FormData uploads
+      delete headers['Content-Type'];
+
+      // 📝 LOG ATTENDANCE REQUEST
+      console.warn('📸 MARK ATTENDANCE REQUEST:', JSON.stringify({
+        method: 'POST',
+        url,
+        headers: {
+          ...headers,
+          Authorization: headers.Authorization ? 'Bearer ***' : undefined, // Hide token in logs
+        },
+        queryParams: {
+          site_id,
+          latitude,
+          longitude,
+          description,
+        },
+        fileInfo: fileObject,
+        timestamp: new Date().toISOString(),
+      }, null, 2));
+
+      // Test network connectivity first
+      console.warn('🌐 TESTING CONNECTIVITY TO:', this.baseURL);
+      try {
+        const testResponse = await fetch(`${this.baseURL}${API_ENDPOINTS.SITES.LIST}`, {
+          method: 'GET',
+          headers: await this.generateHeaders({}, true),
+        });
+        console.warn('🌐 CONNECTIVITY TEST:', testResponse.ok ? 'SUCCESS' : 'FAILED', testResponse.status);
+      } catch (testError: any) {
+        console.error('🌐 CONNECTIVITY TEST FAILED:', testError.message);
+      }
+
+      // Create abort controller for timeout (longer timeout for file uploads)
+      const controller = new AbortController();
+      const uploadTimeout = 60000; // 60 seconds for file uploads
+      const timeoutId = setTimeout(() => {
+        console.error('⏰ UPLOAD TIMEOUT after', uploadTimeout, 'ms');
+        controller.abort();
+      }, uploadTimeout);
+
+      try {
+        const requestStartTime = Date.now();
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: formData,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+        const requestDuration = Date.now() - requestStartTime;
+
+        // Parse response
+        let responseData: any;
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          responseData = await response.json();
+        } else {
+          responseData = await response.text();
+        }
+
+        // 📝 LOG ATTENDANCE RESPONSE
+        if (response.ok) {
+          console.warn('✅ MARK ATTENDANCE SUCCESS:', JSON.stringify({
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${requestDuration}ms`,
+            contentType,
+            data: responseData,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+        } else {
+          console.error('❌ MARK ATTENDANCE ERROR:', JSON.stringify({
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${requestDuration}ms`,
+            contentType,
+            error: responseData?.message || responseData,
+            fullResponse: responseData,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+        }
+
+        if (!response.ok) {
+          return {
+            error: responseData?.message || responseData || `HTTP ${response.status}: ${response.statusText}`,
+            success: false,
+          };
+        }
+
+        return {
+          data: responseData,
+          success: true,
+        };
+
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        // 📝 LOG ATTENDANCE FETCH ERROR
+        console.error('🔥 MARK ATTENDANCE FAILED:', JSON.stringify({
+          error: fetchError.message,
+          errorType: fetchError.name,
+          stack: fetchError.stack,
+          url,
+          timestamp: new Date().toISOString(),
+        }, null, 2));
+        
+        let errorMessage = 'Network request failed';
+        if (fetchError.name === 'AbortError') {
+          errorMessage = 'Upload timeout - please check your internet connection and try again';
+        } else if (fetchError.message.includes('Network request failed')) {
+          errorMessage = 'Cannot connect to server. Please check if your backend server is running and accessible.';
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+    } catch (error: any) {
+      // 📝 LOG ATTENDANCE GENERAL ERROR
+      console.error('💥 MARK ATTENDANCE ERROR:', {
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      });
+      
+      return {
+        error: error.message || 'Failed to mark attendance',
+        success: false,
+      };
+    }
+  }
+
+  // Attendance fetching methods
+  public async getTodayAttendance(userId: string): Promise<ApiResponse<AttendanceRecord[]>> {
+    const queryParams = new URLSearchParams({
+      user_id: userId,
+      period: 'today',
+    });
+    return this.get(`${API_ENDPOINTS.ATTENDANCE.LIST}?${queryParams.toString()}`);
+  }
+
+  public async getMonthAttendance(userId: string): Promise<ApiResponse<AttendanceRecord[]>> {
+    const queryParams = new URLSearchParams({
+      user_id: userId,
+      period: 'month',
+    });
+    return this.get(`${API_ENDPOINTS.ATTENDANCE.LIST}?${queryParams.toString()}`);
+  }
+
+  public async getTodayTasks(userId: string): Promise<ApiResponse<AttendanceRecord[]>> {
+    const queryParams = new URLSearchParams({
+      user_id: userId,
+    });
+    return this.get(`${API_ENDPOINTS.TASKS.TODAY}?${queryParams.toString()}`);
+  }
+
+  public async getMonthTasks(userId: string): Promise<ApiResponse<AttendanceRecord[]>> {
+    const queryParams = new URLSearchParams({
+      user_id: userId,
+    });
+    return this.get(`${API_ENDPOINTS.TASKS.MONTH}?${queryParams.toString()}`);
+  }
+
+  public async submitTaskReport(
+    siteId: string,
+    imageUris: string[],
+    latitude: number,
+    longitude: number,
+    description: string
+  ): Promise<ApiResponse<AttendanceRecord>> {
+    // For now, we'll use a simple POST request
+    // Later this might need to be a multipart form like attendance
+    return this.post(API_ENDPOINTS.TASKS.SUBMIT, {
+      site_id: siteId,
+      image_uris: imageUris,
+      latitude,
+      longitude,
+      description,
+    });
   }
 }
 

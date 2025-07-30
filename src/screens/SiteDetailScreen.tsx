@@ -44,6 +44,7 @@ import Button from '../components/Button';
 import LocationSubmissionModal from '../components/LocationSubmissionModal';
 import MultiImageLocationSubmissionModal from '../components/MultiImageLocationSubmissionModal';
 import { requestCameraPermission, requestLocationPermission, formatDateTime } from '../utils/helpers';
+import { showSuccessToast, showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS, API_MESSAGES } from '../constants/strings';
 
@@ -86,6 +87,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   const dispatch = useDispatch<AppDispatch>();
   
   const { site } = route.params;
+  const { user } = useSelector((state: RootState) => state.auth);
   const { 
     todayAttendance, 
     monthAttendance, 
@@ -96,11 +98,13 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   } = useSelector((state: RootState) => state.attendance);
 
   useEffect(() => {
-    dispatch(fetchTodayAttendance(1)); // This Month attendance
-    dispatch(fetchMonthAttendance(1)); // Last Month attendance
-    dispatch(fetchTodayTasks(1)); // This Month tasks
-    dispatch(fetchMonthTasks(1)); // Last Month tasks
-  }, [dispatch, site.id]);
+    if (user?.id) {
+      dispatch(fetchTodayAttendance(user.id)); // This Month attendance
+      dispatch(fetchMonthAttendance(user.id)); // Last Month attendance
+      dispatch(fetchTodayTasks(user.id)); // This Month tasks
+      dispatch(fetchMonthTasks(user.id)); // Last Month tasks
+    }
+  }, [dispatch, site.id, user?.id]);
 
   const getCurrentLocation = (): Promise<{latitude: number; longitude: number}> => {
     return new Promise((resolve, reject) => {
@@ -246,7 +250,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     try {
       const hasLocationPermission = await requestLocationPermission();
       if (!hasLocationPermission) {
-        Alert.alert('Error', 'Location permission is required to add location overlay');
+        showErrorToast('Location permission is required to add location overlay');
         return;
       }
 
@@ -263,7 +267,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       setIsAttendanceModalVisible(true);
       console.log('Attendance modal should be visible now');
     } catch (error) {
-      Alert.alert('Error', 'Failed to get location. Please try again.');
+      showErrorToast('Failed to get location. Please try again.');
       console.error('Location error:', error);
     }
   };
@@ -282,7 +286,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       try {
         const hasLocationPermission = await requestLocationPermission();
         if (!hasLocationPermission) {
-          Alert.alert('Error', 'Location permission is required to add location overlay');
+          showErrorToast('Location permission is required to add location overlay');
           return;
         }
 
@@ -297,7 +301,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         
         setTaskLocation(currentTaskLocation);
       } catch (error) {
-        Alert.alert('Error', 'Failed to get location. Please try again.');
+        showErrorToast('Failed to get location. Please try again.');
         console.error('Location error:', error);
         return;
       }
@@ -321,7 +325,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       try {
         const hasLocationPermission = await requestLocationPermission();
         if (!hasLocationPermission) {
-          Alert.alert('Error', 'Location permission is required to add location overlay');
+          showErrorToast('Location permission is required to add location overlay');
           return;
         }
 
@@ -336,7 +340,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         
         setTaskLocation(currentTaskLocation);
       } catch (error) {
-        Alert.alert('Error', 'Failed to get location. Please try again.');
+        showErrorToast('Failed to get location. Please try again.');
         console.error('Location error:', error);
         return;
       }
@@ -362,12 +366,13 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       imageUri: imageWithOverlay,
       latitude: attendanceLocation.latitude,
       longitude: attendanceLocation.longitude,
+      description: site.address, // Use site address as description
     }));
     
     setIsAttendanceModalVisible(false);
     setCapturedAttendanceImage(null);
     setAttendanceLocation(null);
-    Alert.alert(STRINGS.SUCCESS, API_MESSAGES.ATTENDANCE_MARKED);
+    showSuccessToast(API_MESSAGES.ATTENDANCE_MARKED);
     console.log('Attendance submitted successfully');
   };
 
@@ -382,12 +387,15 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     dispatch(submitTaskReport({
       siteId: site.id,
       imageUris: processedImageUris,
+      latitude: taskLocation.latitude,
+      longitude: taskLocation.longitude,
+      description: site.address, // Use site address as description
     }));
     
     setIsTaskReportModalVisible(false);
     setCapturedTaskImages([]);
     setTaskLocation(null);
-    Alert.alert(STRINGS.SUCCESS, `Task report submitted successfully with ${processedImageUris.length} image(s).`);
+    showSuccessToast(`Task report submitted successfully with ${processedImageUris.length} image(s).`);
     console.log('Task report submitted successfully');
   };
 
@@ -458,30 +466,19 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   };
 
   const renderAttendanceItem = ({ item }: { item: AttendanceRecord }) => {
-    const displayImage = item.type === 'task' && item.imageUrls 
-      ? item.imageUrls[0] 
-      : item.imageUrl;
-    
-    const allImages = item.type === 'task' && item.imageUrls 
-      ? item.imageUrls 
-      : [item.imageUrl];
+    const displayImage = item.image_url;
+    const allImages = [item.image_url];
 
     return (
       <View style={styles.attendanceItem}>
         <TouchableOpacity onPress={() => openPhotoPreview(displayImage, allImages)}>
           <Image source={{ uri: displayImage }} style={styles.attendanceImage} />
-          {item.type === 'task' && item.imageUrls && item.imageUrls.length > 1 && (
-            <View style={styles.multiImageIndicator}>
-              <PhotoIcon size={16} color={COLORS.WHITE} />
-              <Text style={styles.imageCountBadge}>+{item.imageUrls.length - 1}</Text>
-            </View>
-          )}
         </TouchableOpacity>
         <Text style={styles.attendanceTime}>
           {formatDateTime(item.timestamp)}
         </Text>
         <Text style={styles.recordType}>
-          {item.type === 'attendance' ? 'Attendance' : 'Task Report'}
+          Attendance
         </Text>
       </View>
     );
@@ -550,7 +547,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
             <FlatList
               data={sortedRecords}
               renderItem={renderAttendanceItem}
-              keyExtractor={(item) => `${item.type}-${item.id}`}
+              keyExtractor={(item) => `attendance-${item.id}`}
               numColumns={3}
               scrollEnabled={false}
               ItemSeparatorComponent={() => <View style={styles.separator} />}

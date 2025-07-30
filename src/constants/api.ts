@@ -15,17 +15,14 @@ export const API_ENDPOINTS = {
   
   // Sites
   SITES: {
-    ALL: '/sites/all',
-    MY_SITES: '/sites/my',
-    SEARCH: '/sites/search',
-    DETAILS: '/sites',
+    LIST: '/sites/',
+    DETAILS: '/sites', // with /:id appended
   },
   
   // Attendance
   ATTENDANCE: {
-    MARK: '/attendance/mark',
-    TODAY: '/attendance/today',
-    MONTH: '/attendance/month',
+    MARK: '/attendance/',
+    LIST: '/attendance', // with query params for filtering
   },
   
   // Tasks
