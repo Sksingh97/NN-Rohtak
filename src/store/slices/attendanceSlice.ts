@@ -1,6 +1,29 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { AttendanceState, AttendanceRecord } from '../../types';
+import { AttendanceState, AttendanceRecord, TaskImageRecord, GroupedTaskImages } from '../../types';
 import { apiService } from '../../services/apiService';
+
+// Helper function to group task images by date
+const groupTaskImagesByDate = (taskImages: TaskImageRecord[]): GroupedTaskImages => {
+  const grouped: GroupedTaskImages = {};
+  
+  taskImages.forEach(image => {
+    // Extract date from timestamp (YYYY-MM-DD format)
+    const date = image.timestamp.split('T')[0]; // Get just the date part
+    
+    if (!grouped[date]) {
+      grouped[date] = [];
+    }
+    
+    grouped[date].push(image);
+  });
+  
+  // Sort images within each date by timestamp (newest first)
+  Object.keys(grouped).forEach(date => {
+    grouped[date].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  });
+  
+  return grouped;
+};
 
 const initialState: AttendanceState = {
   todayAttendance: [],
@@ -8,6 +31,8 @@ const initialState: AttendanceState = {
   todayTasks: [],
   monthTasks: [],
   attendanceRecords: [], // Add new field for site-based attendance
+  taskImages: [], // New field for task images
+  groupedTaskImages: {}, // Grouped by date
   isLoading: false,
   error: null,
   isMarkingAttendance: false,
@@ -34,6 +59,24 @@ export const fetchAttendanceBySite = createAsyncThunk(
       }
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch attendance records');
+    }
+  }
+);
+
+// New async thunk for fetching task images by site
+export const fetchTaskImagesBySite = createAsyncThunk(
+  'attendance/fetchTaskImagesBySite',
+  async ({ siteId, startDate, endDate }: { siteId: string; startDate?: string; endDate?: string }, { rejectWithValue }) => {
+    try {
+      const response = await apiService.getTaskImages(siteId, startDate, endDate);
+      
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch task images');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch task images');
     }
   }
 );
@@ -283,6 +326,21 @@ const attendanceSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchAttendanceBySite.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      // Handle fetchTaskImagesBySite
+      .addCase(fetchTaskImagesBySite.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchTaskImagesBySite.fulfilled, (state, action: PayloadAction<TaskImageRecord[]>) => {
+        state.isLoading = false;
+        state.taskImages = action.payload;
+        state.groupedTaskImages = groupTaskImagesByDate(action.payload);
+        state.error = null;
+      })
+      .addCase(fetchTaskImagesBySite.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       });

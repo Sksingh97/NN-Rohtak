@@ -32,6 +32,11 @@ export const API_ENDPOINTS = {
     MONTH: '/tasks/month',
   },
   
+  // Photos
+  PHOTOS: {
+    LIST: '/photos/', // with query params: site_id, start_date, end_date
+  },
+  
   // User
   USER: {
     PROFILE: '/user/profile',

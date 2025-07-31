@@ -69,10 +69,39 @@ export interface AttendanceState {
   todayTasks: AttendanceRecord[];
   monthTasks: AttendanceRecord[];
   attendanceRecords: AttendanceRecord[]; // New field for site-based attendance
+  taskImages: TaskImageRecord[]; // New field for task images
+  groupedTaskImages: GroupedTaskImages; // Grouped by date
   isLoading: boolean;
   isMarkingAttendance: boolean;
   isSubmittingTask: boolean;
   error: string | null;
+}
+
+export interface TaskImageRecord {
+  id: string;
+  user_id: string;
+  site_id: string;
+  description: string | null;
+  lat: number | null;
+  lng: number | null;
+  image_url: string;
+  filename: string;
+  timestamp: string;
+  file_size: number | null;
+  mime_type: string | null;
+}
+
+export interface GroupedTaskImages {
+  [date: string]: TaskImageRecord[];
+}
+
+export interface TaskGroupDisplayItem {
+  id: string;
+  date: string;
+  images: TaskImageRecord[];
+  displayImage: string; // First image URL
+  imageCount: number;
+  timestamp: string; // Latest timestamp for sorting
 }
 
 // Navigation types

@@ -151,3 +151,29 @@ export const getLastMonthRange = (): { startDate: string; endDate: string } => {
   
   return { startDate, endDate };
 };
+
+// Helper function to format date for display in grouped task images
+export const formatDateForGrouping = (dateString: string): string => {
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  // Reset time to compare just the date
+  const inputDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const yesterdayDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+  
+  if (inputDate.getTime() === todayDate.getTime()) {
+    return 'Today';
+  } else if (inputDate.getTime() === yesterdayDate.getTime()) {
+    return 'Yesterday';
+  } else {
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  }
+};

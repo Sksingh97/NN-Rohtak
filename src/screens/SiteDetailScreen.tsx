@@ -30,13 +30,14 @@ import { launchCamera, launchImageLibrary, ImagePickerResponse, MediaType } from
 import Geolocation from 'react-native-geolocation-service';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { RootState, AppDispatch } from '../store';
-import { AttendanceRecord } from '../types';
+import { AttendanceRecord, TaskImageRecord, GroupedTaskImages, TaskGroupDisplayItem } from '../types';
 import {
   fetchTodayAttendance,
   fetchMonthAttendance,
   fetchTodayTasks,
   fetchMonthTasks,
   fetchAttendanceBySite,
+  fetchTaskImagesBySite,
   markAttendance,
   submitTaskReport,
 } from '../store/slices/attendanceSlice';
@@ -44,7 +45,7 @@ import { withLoader } from '../components/Loader';
 import Button from '../components/Button';
 import LocationSubmissionModal from '../components/LocationSubmissionModal';
 import MultiImageLocationSubmissionModal from '../components/MultiImageLocationSubmissionModal';
-import { requestCameraPermission, requestLocationPermission, formatDateTime, getCurrentMonthRange, getLastMonthRange } from '../utils/helpers';
+import { requestCameraPermission, requestLocationPermission, formatDateTime, formatDateForGrouping, getCurrentMonthRange, getLastMonthRange } from '../utils/helpers';
 import { showSuccessToast, showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS, API_MESSAGES } from '../constants/strings';
@@ -91,6 +92,8 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   const { user } = useSelector((state: RootState) => state.auth);
   const { 
     attendanceRecords,
+    taskImages,
+    groupedTaskImages,
     todayAttendance, 
     monthAttendance, 
     todayTasks = [], 
@@ -107,11 +110,13 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       const { startDate, endDate } = getCurrentMonthRange();
       console.log('Fetching This Month attendance:', { startDate, endDate });
       dispatch(fetchAttendanceBySite({ siteId: site.id, startDate, endDate }));
+      dispatch(fetchTaskImagesBySite({ siteId: site.id, startDate, endDate }));
     } else {
       // Last Month
       const { startDate, endDate } = getLastMonthRange();
       console.log('Fetching Last Month attendance:', { startDate, endDate });
       dispatch(fetchAttendanceBySite({ siteId: site.id, startDate, endDate }));
+      dispatch(fetchTaskImagesBySite({ siteId: site.id, startDate, endDate }));
     }
   };
 
@@ -413,7 +418,10 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       latitude: taskLocation.latitude,
       longitude: taskLocation.longitude,
       description: site.address, // Use site address as description
-    }));
+    })).then(() => {
+      // Refresh task images data after successful submission
+      fetchAttendanceForTab(activeTab);
+    });
     
     setIsTaskReportModalVisible(false);
     setCapturedTaskImages([]);
@@ -510,17 +518,73 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     );
   };
 
-  // Use attendance records from API (already filtered by date) and combine with tasks
+  // Convert grouped task images to display items for grid
+  const getTaskGroupDisplayItems = (): TaskGroupDisplayItem[] => {
+    return Object.keys(groupedTaskImages).map(date => {
+      const images = groupedTaskImages[date];
+      const sortedImages = images.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      
+      return {
+        id: `task-group-${date}`,
+        date,
+        images: sortedImages,
+        displayImage: sortedImages[0].image_url,
+        imageCount: sortedImages.length,
+        timestamp: sortedImages[0].timestamp, // Use latest timestamp for sorting
+      };
+    }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  };
+
+  const renderTaskGroupItem = ({ item }: { item: TaskGroupDisplayItem }) => {
+    const allImageUrls = item.images.map(img => img.image_url);
+    
+    return (
+      <View style={styles.attendanceItem}>
+        <TouchableOpacity onPress={() => openPhotoPreview(item.displayImage, allImageUrls)}>
+          <Image source={{ uri: item.displayImage }} style={styles.attendanceImage} />
+          {item.imageCount > 1 && (
+            <View style={styles.imageCountBadge}>
+              <Text style={styles.imageCountText}>{item.imageCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <Text style={styles.attendanceTime}>
+          {formatDateTime(item.timestamp)}
+        </Text>
+        <Text style={styles.recordType}>
+          Task Report
+        </Text>
+      </View>
+    );
+  };
+
+  // Use attendance records from API (already filtered by date) and combine with task groups
+  const taskGroupDisplayItems = getTaskGroupDisplayItems();
   const currentAttendance = activeTab === 0 
     ? [...attendanceRecords, ...todayTasks]
     : [...attendanceRecords, ...monthTasks];
 
-  // Sort by timestamp (newest first) - use check_in_time for new format
-  const sortedRecords = currentAttendance.sort((a, b) => {
-    const aTime = a.check_in_time || a.timestamp;
-    const bTime = b.check_in_time || b.timestamp;
+  // Combine attendance records and task groups for unified display
+  const allRecords = [
+    ...currentAttendance,
+    ...taskGroupDisplayItems
+  ];
+
+  // Sort by timestamp (newest first) - use check_in_time for attendance, timestamp for task groups
+  const sortedRecords = allRecords.sort((a, b) => {
+    const aTime = 'check_in_time' in a ? (a.check_in_time || a.timestamp) : a.timestamp;
+    const bTime = 'check_in_time' in b ? (b.check_in_time || b.timestamp) : b.timestamp;
     return new Date(bTime).getTime() - new Date(aTime).getTime();
   });
+
+  const renderRecord = ({ item }: { item: AttendanceRecord | TaskGroupDisplayItem }) => {
+    // Check if it's a task group item
+    if ('images' in item) {
+      return renderTaskGroupItem({ item });
+    } else {
+      return renderAttendanceItem({ item });
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -575,13 +639,13 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
           </TouchableOpacity>
         </View>
 
-        {/* Attendance List */}
+        {/* Records List - Combined Attendance and Task Images */}
         <View style={styles.attendanceContainer}>
           {sortedRecords.length > 0 ? (
             <FlatList
-              data={sortedRecords}
-              renderItem={renderAttendanceItem}
-              keyExtractor={(item) => `attendance-${item.id}`}
+              data={sortedRecords as any[]} // Cast to any[] to handle union type
+              renderItem={renderRecord}
+              keyExtractor={(item) => ('images' in item ? item.id : `attendance-${item.id}`)}
               numColumns={3}
               scrollEnabled={false}
               ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -763,10 +827,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   imageCountBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  imageCountText: {
     color: COLORS.WHITE,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: 'bold',
-    marginLeft: 2,
   },
   recordType: {
     fontSize: SIZES.FONT_SIZE_SMALL - 1,
@@ -922,12 +997,6 @@ const styles = StyleSheet.create({
   taskImageWrapper: {
     marginRight: SIZES.MARGIN_SMALL,
   },
-  imageCountText: {
-    fontSize: SIZES.FONT_SIZE_MEDIUM,
-    color: COLORS.TEXT_SECONDARY,
-    textAlign: 'center',
-    marginBottom: SIZES.MARGIN_LARGE,
-  },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1004,6 +1073,25 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
+  },
+  taskGroupContainer: {
+    marginBottom: SIZES.MARGIN_LARGE,
+  },
+  taskGroupDate: {
+    fontSize: SIZES.FONT_SIZE_MEDIUM,
+    fontWeight: 'bold',
+    color: COLORS.TEXT_PRIMARY,
+    marginBottom: SIZES.MARGIN_MEDIUM,
+  },
+  sectionContainer: {
+    marginBottom: SIZES.MARGIN_LARGE,
+  },
+  sectionTitle: {
+    fontSize: SIZES.FONT_SIZE_LARGE,
+    fontWeight: 'bold',
+    color: COLORS.TEXT_PRIMARY,
+    marginBottom: SIZES.MARGIN_MEDIUM,
+    paddingHorizontal: SIZES.PADDING_MEDIUM,
   },
 });
 

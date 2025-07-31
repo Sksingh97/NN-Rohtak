@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, API_ENDPOINTS } from '../constants/api';
-import { AttendanceRecord } from '../types';
+import { AttendanceRecord, TaskImageRecord } from '../types';
 
 // Storage keys
 export const STORAGE_KEYS = {
@@ -614,6 +614,26 @@ class ApiService {
       longitude,
       description,
     });
+  }
+
+  public async getTaskImages(
+    siteId: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<ApiResponse<TaskImageRecord[]>> {
+    const queryParams = new URLSearchParams({
+      site_id: siteId,
+    });
+    
+    if (startDate) {
+      queryParams.append('start_date', startDate);
+    }
+    
+    if (endDate) {
+      queryParams.append('end_date', endDate);
+    }
+    
+    return this.get(`${API_ENDPOINTS.PHOTOS.LIST}?${queryParams.toString()}`);
   }
 }
 
