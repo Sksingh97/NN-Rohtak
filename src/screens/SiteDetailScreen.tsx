@@ -8,7 +8,6 @@ import {
   Image,
   FlatList,
   Alert,
-  ActionSheetIOS,
   Platform,
   Dimensions,
   Modal,
@@ -45,6 +44,7 @@ import { withLoader } from '../components/Loader';
 import Button from '../components/Button';
 import LocationSubmissionModal from '../components/LocationSubmissionModal';
 import MultiImageLocationSubmissionModal from '../components/MultiImageLocationSubmissionModal';
+import ImagePickerModal from '../components/ImagePickerModal';
 import { requestCameraPermission, requestLocationPermission, formatDateTime, formatDateForGrouping, getCurrentMonthRange, getLastMonthRange } from '../utils/helpers';
 import { showSuccessToast, showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
@@ -85,6 +85,10 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     longitude: number;
     timestamp: string;
   } | null>(null);
+  
+  // Image picker modal states
+  const [isAttendancePickerVisible, setIsAttendancePickerVisible] = useState(false);
+  const [isTaskPickerVisible, setIsTaskPickerVisible] = useState(false);
   
   const dispatch = useDispatch<AppDispatch>();
   
@@ -147,65 +151,11 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   };
 
   const showAttendanceImagePicker = () => {
-    const options = [STRINGS.TAKE_PHOTO, STRINGS.CHOOSE_FROM_GALLERY, STRINGS.CANCEL];
-    
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex: 2,
-          title: 'Select Attendance Photo',
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 0) {
-            openAttendanceCamera();
-          } else if (buttonIndex === 1) {
-            openAttendanceGallery();
-          }
-        }
-      );
-    } else {
-      Alert.alert(
-        'Select Attendance Photo',
-        '',
-        [
-          { text: STRINGS.TAKE_PHOTO, onPress: openAttendanceCamera },
-          { text: STRINGS.CHOOSE_FROM_GALLERY, onPress: openAttendanceGallery },
-          { text: STRINGS.CANCEL, style: 'cancel' },
-        ]
-      );
-    }
+    setIsAttendancePickerVisible(true);
   };
 
   const showTaskImagePicker = () => {
-    const options = [STRINGS.TAKE_PHOTO, 'Select Multiple Photos', STRINGS.CANCEL];
-    
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex: 2,
-          title: 'Add Task Photos',
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 0) {
-            openTaskCamera();
-          } else if (buttonIndex === 1) {
-            openTaskGalleryMultiple();
-          }
-        }
-      );
-    } else {
-      Alert.alert(
-        'Add Task Photos',
-        '',
-        [
-          { text: STRINGS.TAKE_PHOTO, onPress: openTaskCamera },
-          { text: 'Select Multiple Photos', onPress: openTaskGalleryMultiple },
-          { text: STRINGS.CANCEL, style: 'cancel' },
-        ]
-      );
-    }
+    setIsTaskPickerVisible(true);
   };
 
   const openAttendanceCamera = async () => {
@@ -746,6 +696,26 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
           setCapturedTaskImages([]);
           setTaskLocation(null);
         }}
+      />
+
+      {/* Attendance Image Picker Modal */}
+      <ImagePickerModal
+        visible={isAttendancePickerVisible}
+        onClose={() => setIsAttendancePickerVisible(false)}
+        onCamera={openAttendanceCamera}
+        onGallery={openAttendanceGallery}
+        title="Select Attendance Photo"
+        allowMultiple={false}
+      />
+
+      {/* Task Image Picker Modal */}
+      <ImagePickerModal
+        visible={isTaskPickerVisible}
+        onClose={() => setIsTaskPickerVisible(false)}
+        onCamera={openTaskCamera}
+        onGallery={openTaskGalleryMultiple}
+        title="Add Task Photos"
+        allowMultiple={true}
       />
 
       {/* Photo Preview Modal */}
