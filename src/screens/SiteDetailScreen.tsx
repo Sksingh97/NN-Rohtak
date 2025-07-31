@@ -631,10 +631,19 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         {/* Site Info */}
         <View style={styles.siteInfoCard}>
           <View style={styles.siteHeader}>
-            <MapPinIcon size={24} color={COLORS.PRIMARY} />
-            <Text style={styles.siteName}>{site.name}</Text>
+            <Image 
+              source={require('../assets/siteIcon.png')} 
+              style={styles.siteIcon}
+              resizeMode="contain"
+            />
+            <View style={styles.siteHeaderText}>
+              <Text style={styles.siteName}>{site.name}</Text>
+              <View style={styles.addressContainer}>
+                <MapPinIcon size={16} color={COLORS.PRIMARY} />
+                <Text style={styles.siteAddress}>{site.address}</Text>
+              </View>
+            </View>
           </View>
-          <Text style={styles.siteAddress}>{site.address}</Text>
         </View>
 
         {/* Action Buttons */}
@@ -822,17 +831,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SIZES.MARGIN_MEDIUM,
   },
+  siteIcon: {
+    width: 48,
+    height: 48,
+    marginRight: SIZES.MARGIN_MEDIUM,
+  },
+  siteHeaderText: {
+    flex: 1,
+  },
+  addressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: SIZES.MARGIN_SMALL,
+  },
   siteName: {
     fontSize: SIZES.FONT_SIZE_TITLE,
     fontWeight: 'bold',
     color: COLORS.TEXT_PRIMARY,
-    marginLeft: SIZES.MARGIN_SMALL,
-    flex: 1,
   },
   siteAddress: {
     fontSize: SIZES.FONT_SIZE_MEDIUM,
     color: COLORS.TEXT_SECONDARY,
     lineHeight: 22,
+    marginLeft: SIZES.MARGIN_SMALL,
+    flex: 1,
   },
   markAttendanceButton: {
     marginHorizontal: SIZES.MARGIN_MEDIUM,

@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -93,6 +94,11 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
       style={styles.siteCard}
       onPress={() => navigation.navigate('SiteDetail', { site: item })}
       activeOpacity={0.8}>
+      <Image 
+        source={require('../assets/siteIcon.png')} 
+        style={styles.siteIcon}
+        resizeMode="contain"
+      />
       <View style={styles.siteInfo}>
         <Text style={styles.siteName}>{item.name}</Text>
         <Text style={styles.siteAddress}>{item.address}</Text>
@@ -256,6 +262,11 @@ const styles = StyleSheet.create({
     marginVertical: SIZES.MARGIN_SMALL,
     borderRadius: SIZES.BORDER_RADIUS_MEDIUM,
     ...SHADOWS.LIGHT,
+  },
+  siteIcon: {
+    width: 40,
+    height: 40,
+    marginRight: SIZES.MARGIN_MEDIUM,
   },
   siteInfo: {
     flex: 1,
