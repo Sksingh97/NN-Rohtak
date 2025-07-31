@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import ViewShot from 'react-native-view-shot';
-import { reverseGeocode } from '../utils/imageUtils';
+import { safeReverseGeocode } from '../utils/imageUtils';
 
 export const useImageWithLocationOverlay = () => {
   const viewShotRef = useRef<ViewShot>(null);
@@ -34,7 +34,7 @@ export const useImageWithLocationOverlay = () => {
     };
   }> => {
     try {
-      const address = await reverseGeocode(latitude, longitude);
+      const address = await safeReverseGeocode(latitude, longitude);
       
       return {
         imageWithOverlay: imageUri, // Will be replaced with actual overlay image

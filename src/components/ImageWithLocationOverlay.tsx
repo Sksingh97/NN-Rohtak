@@ -2,6 +2,7 @@ import React, { forwardRef, useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import { COLORS, SIZES } from '../constants/theme';
+import { safeReverseGeocode } from '../utils/imageUtils';
 
 interface LocationOverlayProps {
   imageUri: string;
@@ -21,6 +22,8 @@ export const ImageWithLocationOverlay = forwardRef<ViewShot, LocationOverlayProp
   address,
 }, ref) => {
   const [imageAspectRatio, setImageAspectRatio] = useState<number>(4/3); // Default aspect ratio
+  const [fetchedAddress, setFetchedAddress] = useState<string | null>(null);
+  const [isLoadingAddress, setIsLoadingAddress] = useState<boolean>(false);
 
   useEffect(() => {
     // Get the actual image dimensions to calculate aspect ratio
@@ -36,6 +39,82 @@ export const ImageWithLocationOverlay = forwardRef<ViewShot, LocationOverlayProp
     );
   }, [imageUri]);
 
+  useEffect(() => {
+    // Fetch address from coordinates if address is not provided
+    const fetchAddressFromCoordinates = async () => {
+      if (!address && latitude && longitude && !isLoadingAddress && !fetchedAddress) {
+        // Validate coordinates first
+        if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+          console.warn('Invalid coordinates for address fetching:', latitude, longitude);
+          setFetchedAddress('Invalid location');
+          return;
+        }
+
+        console.log('Fetching address for gallery image coordinates:', latitude, longitude);
+        setIsLoadingAddress(true);
+        
+        try {
+          // Use a longer timeout for gallery images and add retry logic
+          const fetchWithRetry = async (retries = 2): Promise<string> => {
+            for (let i = 0; i <= retries; i++) {
+              try {
+                console.log(`Address fetch attempt ${i + 1}/${retries + 1}`);
+                
+                // Create a longer timeout promise (10 seconds instead of 5)
+                const timeoutPromise = new Promise<string>((_, reject) =>
+                  setTimeout(() => reject(new Error('Address fetch timeout')), 10000)
+                );
+                
+                const geocodePromise = safeReverseGeocode(latitude, longitude);
+                
+                const result = await Promise.race([geocodePromise, timeoutPromise]);
+                
+                if (result && result !== 'Rohtak, Haryana, India') {
+                  return result;
+                }
+                
+                // If we got a fallback result, try again on next iteration
+                if (i < retries) {
+                  console.log('Got fallback result, retrying...');
+                  await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+                  continue;
+                }
+                
+                return result;
+              } catch (error: any) {
+                console.log(`Address fetch attempt ${i + 1} failed:`, error.message);
+                
+                if (i === retries) {
+                  throw error; // Re-throw on final attempt
+                }
+                
+                // Wait before retry
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+            }
+            
+            return 'Location unavailable';
+          };
+          
+          const geocodedAddress = await fetchWithRetry();
+          console.log('Successfully fetched address:', geocodedAddress);
+          setFetchedAddress(geocodedAddress);
+          
+        } catch (error) {
+          console.error('Error fetching address from coordinates after retries:', error);
+          setFetchedAddress('Location unavailable');
+        } finally {
+          setIsLoadingAddress(false);
+        }
+      }
+    };
+
+    // Add a small delay to avoid race conditions with multiple rapid calls
+    const timeoutId = setTimeout(fetchAddressFromCoordinates, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [address, latitude, longitude, isLoadingAddress, fetchedAddress]);
+
   const formatLocationText = () => {
     const date = new Date(timestamp);
     const formattedDate = date.toLocaleDateString('en-IN', {
@@ -48,10 +127,21 @@ export const ImageWithLocationOverlay = forwardRef<ViewShot, LocationOverlayProp
       minute: '2-digit',
       hour12: true
     });
-    const coords = `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
+    const coords = `Lat: ${latitude.toFixed(7)}, Lng: ${longitude.toFixed(7)}`;
+    
+    // Use provided address, or fetched address, or fallback
+    let displayAddress = address || fetchedAddress;
+    
+    if (!displayAddress) {
+      if (isLoadingAddress) {
+        displayAddress = 'Fetching address...';
+      } else {
+        displayAddress = 'Location unavailable';
+      }
+    }
     
     return {
-      address: address || 'Location unavailable',
+      address: displayAddress,
       coordinates: coords,
       dateTime: `${formattedDate} ${formattedTime}`
     };

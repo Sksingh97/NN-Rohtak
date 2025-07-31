@@ -11,7 +11,7 @@ import ViewShot from 'react-native-view-shot';
 import { ImageWithLocationOverlay } from './ImageWithLocationOverlay';
 import { showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
-import { reverseGeocode } from '../utils/imageUtils';
+import { safeReverseGeocode } from '../utils/imageUtils';
 
 interface LocationSubmissionModalProps {
   visible: boolean;
@@ -42,7 +42,7 @@ export const LocationSubmissionModal: React.FC<LocationSubmissionModalProps> = (
   const loadAddress = useCallback(async () => {
     setIsLoading(true);
     try {
-      const fetchedAddress = await reverseGeocode(latitude, longitude);
+      const fetchedAddress = await safeReverseGeocode(latitude, longitude);
       setAddress(fetchedAddress);
     } catch (error) {
       console.error('Failed to get address:', error);

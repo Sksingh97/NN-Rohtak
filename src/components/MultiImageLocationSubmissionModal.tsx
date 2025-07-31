@@ -14,7 +14,7 @@ import { XMarkIcon, MapPinIcon } from 'react-native-heroicons/outline';
 import { ImageWithLocationOverlay } from './ImageWithLocationOverlay';
 import { showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
-import { reverseGeocode } from '../utils/imageUtils';
+import { safeReverseGeocode } from '../utils/imageUtils';
 
 interface MultiImageLocationSubmissionModalProps {
   visible: boolean;
@@ -56,7 +56,7 @@ export const MultiImageLocationSubmissionModal: React.FC<MultiImageLocationSubmi
   const loadAddress = useCallback(async () => {
     setIsLoading(true);
     try {
-      const fetchedAddress = await reverseGeocode(latitude, longitude);
+      const fetchedAddress = await safeReverseGeocode(latitude, longitude);
       setAddress(fetchedAddress);
     } catch (error) {
       console.error('Failed to get address:', error);

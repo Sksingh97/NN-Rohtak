@@ -70,7 +70,7 @@ export const TaskImageDisplaySimplified = forwardRef<TaskImageDisplayRef, TaskIm
       minute: '2-digit',
       hour12: true
     });
-    const coords = `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
+    const coords = `Lat: ${latitude.toFixed(7)}, Lng: ${longitude.toFixed(7)}`;
     
     return {
       address: address || 'Location unavailable',
