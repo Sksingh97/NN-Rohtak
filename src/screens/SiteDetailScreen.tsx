@@ -18,7 +18,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import {
-  PhotoIcon,
   MapPinIcon,
   CameraIcon,
   ArrowLeftIcon,
@@ -329,7 +328,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     setIsTaskReportModalVisible(true);
   };
 
-  const submitAttendance = (imageWithOverlay: string, address: string) => {
+  const submitAttendance = async (imageWithOverlay: string, address: string) => {
     console.log('Submitting attendance with image:', imageWithOverlay);
     console.log('Using reverse geocoded address:', address);
     if (!imageWithOverlay || !attendanceLocation) {
@@ -337,25 +336,34 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       return;
     }
 
-    dispatch(markAttendance({
-      siteId: site.id,
-      imageUri: imageWithOverlay,
-      latitude: attendanceLocation.latitude,
-      longitude: attendanceLocation.longitude,
-      description: address, // Use reverse geocoded address as description
-    })).then(() => {
+    try {
+      await dispatch(markAttendance({
+        siteId: site.id,
+        imageUri: imageWithOverlay,
+        latitude: attendanceLocation.latitude,
+        longitude: attendanceLocation.longitude,
+        description: address, // Use reverse geocoded address as description
+      })).unwrap();
+      
+      // Only show success toast after successful API response
+      showSuccessToast(API_MESSAGES.ATTENDANCE_MARKED);
+      console.log('Attendance submitted successfully');
+      
       // Refresh attendance data after successful submission
       fetchAttendanceForTab(activeTab);
-    });
-    
-    setIsAttendanceModalVisible(false);
-    setCapturedAttendanceImage(null);
-    setAttendanceLocation(null);
-    showSuccessToast(API_MESSAGES.ATTENDANCE_MARKED);
-    console.log('Attendance submitted successfully');
+    } catch (error: any) {
+      // Show error toast if API submission fails
+      showErrorToast(error || API_MESSAGES.ATTENDANCE_ERROR);
+      console.error('Attendance submission failed:', error);
+    } finally {
+      // Clean up regardless of success/failure
+      setIsAttendanceModalVisible(false);
+      setCapturedAttendanceImage(null);
+      setAttendanceLocation(null);
+    }
   };
 
-  const handleTaskReportSubmit = (processedImageUris: string[], address: string) => {
+  const handleTaskReportSubmit = async (processedImageUris: string[], address: string) => {
     console.log('Submitting task report with images:', processedImageUris);
     console.log('Using reverse geocoded address:', address);
     if (!processedImageUris.length || !taskLocation) {
@@ -363,23 +371,32 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       return;
     }
 
-    // Use existing submitTaskReport action
-    dispatch(submitTaskReport({
-      siteId: site.id,
-      imageUris: processedImageUris,
-      latitude: taskLocation.latitude,
-      longitude: taskLocation.longitude,
-      description: address, // Use reverse geocoded address as description
-    })).then(() => {
+    try {
+      // Use existing submitTaskReport action
+      await dispatch(submitTaskReport({
+        siteId: site.id,
+        imageUris: processedImageUris,
+        latitude: taskLocation.latitude,
+        longitude: taskLocation.longitude,
+        description: address, // Use reverse geocoded address as description
+      })).unwrap();
+      
+      // Only show success toast after successful API response
+      showSuccessToast(`Task report submitted successfully with ${processedImageUris.length} image(s).`);
+      console.log('Task report submitted successfully');
+      
       // Refresh task images data after successful submission
       fetchAttendanceForTab(activeTab);
-    });
-    
-    setIsTaskReportModalVisible(false);
-    setCapturedTaskImages([]);
-    setTaskLocation(null);
-    showSuccessToast(`Task report submitted successfully with ${processedImageUris.length} image(s).`);
-    console.log('Task report submitted successfully');
+    } catch (error: any) {
+      // Show error toast if API submission fails
+      showErrorToast(error || API_MESSAGES.TASK_REPORT_ERROR);
+      console.error('Task report submission failed:', error);
+    } finally {
+      // Clean up regardless of success/failure
+      setIsTaskReportModalVisible(false);
+      setCapturedTaskImages([]);
+      setTaskLocation(null);
+    }
   };
 
   const handleAddMoreTaskImages = () => {

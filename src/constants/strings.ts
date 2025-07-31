@@ -47,4 +47,5 @@ export const API_MESSAGES = {
   UNAUTHORIZED: 'Unauthorized access. Please login again.',
   ATTENDANCE_MARKED: 'Attendance marked successfully',
   ATTENDANCE_ERROR: 'Failed to mark attendance. Please try again.',
+  TASK_REPORT_ERROR: 'Failed to submit task report. Please try again.',
 };
