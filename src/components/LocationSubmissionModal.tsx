@@ -12,7 +12,8 @@ import ViewShot from 'react-native-view-shot';
 import { ImageWithLocationOverlay } from './ImageWithLocationOverlay';
 import { showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
-import { safeReverseGeocode } from '../utils/imageUtils';
+import { safeReverseGeocode, networkAwareReverseGeocode } from '../utils/imageUtils';
+import { robustReverseGeocode } from '../utils/geocodingRecovery';
 
 interface LocationSubmissionModalProps {
   visible: boolean;
@@ -20,7 +21,7 @@ interface LocationSubmissionModalProps {
   latitude: number;
   longitude: number;
   timestamp: string;
-  onSubmit: (imageWithOverlay: string) => void;
+  onSubmit: (imageWithOverlay: string, address: string) => void;
   onCancel: () => void;
   title: string;
 }
@@ -43,11 +44,15 @@ export const LocationSubmissionModal: React.FC<LocationSubmissionModalProps> = (
   const loadAddress = useCallback(async () => {
     setIsLoading(true);
     try {
-      const fetchedAddress = await safeReverseGeocode(latitude, longitude);
-      setAddress(fetchedAddress);
-    } catch (error) {
-      console.error('Failed to get address:', error);
-      setAddress('Location unavailable');
+      console.log('🏠 Loading address for coordinates:', { latitude, longitude });
+      const result = await robustReverseGeocode(latitude, longitude, true);
+      console.log('🏠 Address loaded:', result);
+      setAddress(result.address);
+    } catch (error: any) {
+      console.error('❌ Failed to get address:', error.message || error);
+      const fallbackAddress = `${latitude?.toFixed(6) || 'Unknown'}, ${longitude?.toFixed(6) || 'Unknown'}`;
+      console.log('🔄 Using final fallback address:', fallbackAddress);
+      setAddress(fallbackAddress);
     } finally {
       setIsLoading(false);
     }
@@ -72,7 +77,7 @@ export const LocationSubmissionModal: React.FC<LocationSubmissionModalProps> = (
       console.log('Capturing image with overlay...');
       const capturedImageUri = await viewShotRef.current.capture();
       console.log('Image captured successfully:', capturedImageUri);
-      onSubmit(capturedImageUri);
+      onSubmit(capturedImageUri, address);
     } catch (error) {
       console.error('Error capturing image:', error);
       showErrorToast('Failed to process image with location overlay');

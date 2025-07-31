@@ -2,7 +2,7 @@ import React, { forwardRef, useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import { COLORS, SIZES } from '../constants/theme';
-import { safeReverseGeocode } from '../utils/imageUtils';
+import { safeReverseGeocode, networkAwareReverseGeocode } from '../utils/imageUtils';
 
 interface LocationOverlayProps {
   imageUri: string;
@@ -65,7 +65,7 @@ export const ImageWithLocationOverlay = forwardRef<ViewShot, LocationOverlayProp
                   setTimeout(() => reject(new Error('Address fetch timeout')), 10000)
                 );
                 
-                const geocodePromise = safeReverseGeocode(latitude, longitude);
+                const geocodePromise = networkAwareReverseGeocode(latitude, longitude);
                 
                 const result = await Promise.race([geocodePromise, timeoutPromise]);
                 

@@ -329,8 +329,9 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     setIsTaskReportModalVisible(true);
   };
 
-  const submitAttendance = (imageWithOverlay: string) => {
+  const submitAttendance = (imageWithOverlay: string, address: string) => {
     console.log('Submitting attendance with image:', imageWithOverlay);
+    console.log('Using reverse geocoded address:', address);
     if (!imageWithOverlay || !attendanceLocation) {
       console.log('Missing data for attendance submission:', { imageWithOverlay, attendanceLocation });
       return;
@@ -341,7 +342,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       imageUri: imageWithOverlay,
       latitude: attendanceLocation.latitude,
       longitude: attendanceLocation.longitude,
-      description: site.address, // Use site address as description
+      description: address, // Use reverse geocoded address as description
     })).then(() => {
       // Refresh attendance data after successful submission
       fetchAttendanceForTab(activeTab);
@@ -354,8 +355,9 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     console.log('Attendance submitted successfully');
   };
 
-  const handleTaskReportSubmit = (processedImageUris: string[]) => {
+  const handleTaskReportSubmit = (processedImageUris: string[], address: string) => {
     console.log('Submitting task report with images:', processedImageUris);
+    console.log('Using reverse geocoded address:', address);
     if (!processedImageUris.length || !taskLocation) {
       console.log('Missing data for task report submission:', { processedImageUris: processedImageUris.length, taskLocation });
       return;
@@ -367,7 +369,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       imageUris: processedImageUris,
       latitude: taskLocation.latitude,
       longitude: taskLocation.longitude,
-      description: site.address, // Use site address as description
+      description: address, // Use reverse geocoded address as description
     })).then(() => {
       // Refresh task images data after successful submission
       fetchAttendanceForTab(activeTab);

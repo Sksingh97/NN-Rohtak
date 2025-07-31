@@ -1,4 +1,4 @@
-const BASE_URL = 'https://endlessly-helpful-oarfish.ngrok-free.app/api';
+const BASE_URL = 'https://api.sbmrohtak.in/api';
 
 export const API_CONFIG = {
   BASE_URL,
@@ -22,7 +22,7 @@ export const API_ENDPOINTS = {
   
   // Attendance
   ATTENDANCE: {
-    MARK: '/attendance/',
+    MARK: '/attendance/', // Query params: latitude, longitude, description
     LIST: '/attendance', // with query params for filtering
   },
   
@@ -36,7 +36,7 @@ export const API_ENDPOINTS = {
   // Photos
   PHOTOS: {
     LIST: '/photos/', // with query params: site_id, start_date, end_date
-    UPLOAD_MULTIPLE: '/photos/upload-multiple', // with query params: site_id
+    UPLOAD_MULTIPLE: '/photos/upload-multiple', // Query params: site_id, latitude, longitude, description
   },
   
   // User

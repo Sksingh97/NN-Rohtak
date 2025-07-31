@@ -14,7 +14,8 @@ import { XMarkIcon, MapPinIcon } from 'react-native-heroicons/outline';
 import { ImageWithLocationOverlay } from './ImageWithLocationOverlay';
 import { showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
-import { safeReverseGeocode } from '../utils/imageUtils';
+import { safeReverseGeocode, networkAwareReverseGeocode } from '../utils/imageUtils';
+import { robustReverseGeocode } from '../utils/geocodingRecovery';
 
 interface MultiImageLocationSubmissionModalProps {
   visible: boolean;
@@ -22,7 +23,7 @@ interface MultiImageLocationSubmissionModalProps {
   latitude: number;
   longitude: number;
   timestamp: string;
-  onSubmit: (processedImageUris: string[]) => void;
+  onSubmit: (processedImageUris: string[], address: string) => void;
   onCancel: () => void;
   onAddMore?: () => void;
   onRemoveImage?: (index: number) => void;
@@ -56,11 +57,15 @@ export const MultiImageLocationSubmissionModal: React.FC<MultiImageLocationSubmi
   const loadAddress = useCallback(async () => {
     setIsLoading(true);
     try {
-      const fetchedAddress = await safeReverseGeocode(latitude, longitude);
-      setAddress(fetchedAddress);
-    } catch (error) {
-      console.error('Failed to get address:', error);
-      setAddress('Location unavailable');
+      console.log('🏠 Loading address for coordinates (Multi-image):', { latitude, longitude });
+      const result = await robustReverseGeocode(latitude, longitude, true);
+      console.log('🏠 Address loaded (Multi-image):', result);
+      setAddress(result.address);
+    } catch (error: any) {
+      console.error('❌ Failed to get address (Multi-image):', error.message || error);
+      const fallbackAddress = `${latitude?.toFixed(6) || 'Unknown'}, ${longitude?.toFixed(6) || 'Unknown'}`;
+      console.log('🔄 Using final fallback address (Multi-image):', fallbackAddress);
+      setAddress(fallbackAddress);
     } finally {
       setIsLoading(false);
     }
@@ -98,7 +103,7 @@ export const MultiImageLocationSubmissionModal: React.FC<MultiImageLocationSubmi
       }
       
       console.log('All images processed successfully:', processedImages);
-      onSubmit(processedImages);
+      onSubmit(processedImages, address);
     } catch (error) {
       console.error('Error capturing images:', error);
       showErrorToast('Failed to process images with location overlay');

@@ -657,7 +657,22 @@ class ApiService {
     longitude?: number,
     description?: string
   ): Promise<ApiResponse<TaskImageRecord[]>> {
-    const url = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.PHOTOS.UPLOAD_MULTIPLE}?site_id=${siteId}`;
+    // Create query params including the required location data
+    const queryParams = new URLSearchParams({
+      site_id: siteId,
+    });
+
+    if (latitude !== undefined) {
+      queryParams.append('latitude', latitude.toString());
+    }
+    if (longitude !== undefined) {
+      queryParams.append('longitude', longitude.toString());
+    }
+    if (description) {
+      queryParams.append('description', description);
+    }
+
+    const url = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.PHOTOS.UPLOAD_MULTIPLE}?${queryParams.toString()}`;
     
     // 📝 LOG UPLOAD START
     console.warn('🚀 STARTING MULTIPLE PHOTOS UPLOAD:', JSON.stringify({
@@ -676,7 +691,7 @@ class ApiService {
         throw new Error('No authentication token found');
       }
 
-      // Create FormData
+      // Create FormData (only for images now)
       const formData = new FormData();
       
       // Add images to FormData
@@ -688,17 +703,6 @@ class ApiService {
           name: filename,
         });
       });
-
-      // Add optional parameters
-      if (latitude !== undefined) {
-        formData.append('latitude', latitude.toString());
-      }
-      if (longitude !== undefined) {
-        formData.append('longitude', longitude.toString());
-      }
-      if (description) {
-        formData.append('description', description);
-      }
 
       const headers: Record<string, string> = {
         'Authorization': `Bearer ${token}`,
