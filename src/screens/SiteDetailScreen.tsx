@@ -126,8 +126,8 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     
     // Keep existing user-based fetching for tasks if needed
     if (user?.id) {
-      dispatch(fetchTodayTasks(user.id)); // This Month tasks
-      dispatch(fetchMonthTasks(user.id)); // Last Month tasks
+      // dispatch(fetchTodayTasks(user.id)); // This Month tasks
+      // dispatch(fetchMonthTasks(user.id)); // Last Month tasks
     }
   }, [dispatch, site.id, user?.id]);
 
@@ -522,17 +522,42 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   const getTaskGroupDisplayItems = (): TaskGroupDisplayItem[] => {
     return Object.keys(groupedTaskImages).map(date => {
       const images = groupedTaskImages[date];
-      const sortedImages = images.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      // Create a new array and sort with timestamp validation
+      const sortedImages = [...images].sort((a, b) => {
+        const aDate = a.timestamp ? new Date(a.timestamp) : new Date(0);
+        const bDate = b.timestamp ? new Date(b.timestamp) : new Date(0);
+        
+        const aValid = !isNaN(aDate.getTime());
+        const bValid = !isNaN(bDate.getTime());
+        
+        if (!aValid && !bValid) return 0;
+        if (!aValid) return 1;
+        if (!bValid) return -1;
+        
+        return bDate.getTime() - aDate.getTime();
+      });
       
       return {
         id: `task-group-${date}`,
         date,
         images: sortedImages,
-        displayImage: sortedImages[0].image_url,
+        displayImage: sortedImages[0]?.image_url || '',
         imageCount: sortedImages.length,
-        timestamp: sortedImages[0].timestamp, // Use latest timestamp for sorting
+        timestamp: sortedImages[0]?.timestamp || date, // Use latest timestamp or fallback to date
       };
-    }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }).sort((a, b) => {
+      const aDate = a.timestamp ? new Date(a.timestamp) : new Date(0);
+      const bDate = b.timestamp ? new Date(b.timestamp) : new Date(0);
+      
+      const aValid = !isNaN(aDate.getTime());
+      const bValid = !isNaN(bDate.getTime());
+      
+      if (!aValid && !bValid) return 0;
+      if (!aValid) return 1;
+      if (!bValid) return -1;
+      
+      return bDate.getTime() - aDate.getTime();
+    });
   };
 
   const renderTaskGroupItem = ({ item }: { item: TaskGroupDisplayItem }) => {
@@ -571,10 +596,24 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   ];
 
   // Sort by timestamp (newest first) - use check_in_time for attendance, timestamp for task groups
-  const sortedRecords = allRecords.sort((a, b) => {
+  // Create a new array to avoid mutating read-only Redux state
+  const sortedRecords = [...allRecords].sort((a, b) => {
     const aTime = 'check_in_time' in a ? (a.check_in_time || a.timestamp) : a.timestamp;
     const bTime = 'check_in_time' in b ? (b.check_in_time || b.timestamp) : b.timestamp;
-    return new Date(bTime).getTime() - new Date(aTime).getTime();
+    
+    // Handle cases where timestamps might be missing or invalid
+    const aDate = aTime ? new Date(aTime) : new Date(0);
+    const bDate = bTime ? new Date(bTime) : new Date(0);
+    
+    // Check for invalid dates and fallback to epoch if needed
+    const aValid = !isNaN(aDate.getTime());
+    const bValid = !isNaN(bDate.getTime());
+    
+    if (!aValid && !bValid) return 0;
+    if (!aValid) return 1; // Put invalid dates at the end
+    if (!bValid) return -1; // Put invalid dates at the end
+    
+    return bDate.getTime() - aDate.getTime();
   });
 
   const renderRecord = ({ item }: { item: AttendanceRecord | TaskGroupDisplayItem }) => {

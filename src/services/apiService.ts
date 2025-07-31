@@ -635,6 +635,163 @@ class ApiService {
     
     return this.get(`${API_ENDPOINTS.PHOTOS.LIST}?${queryParams.toString()}`);
   }
+
+  public async uploadMultiplePhotos(
+    siteId: string,
+    imageUris: string[],
+    latitude?: number,
+    longitude?: number,
+    description?: string
+  ): Promise<ApiResponse<TaskImageRecord[]>> {
+    const url = `${API_CONFIG.BASE_URL}${API_ENDPOINTS.PHOTOS.UPLOAD_MULTIPLE}?site_id=${siteId}`;
+    
+    // 📝 LOG UPLOAD START
+    console.warn('🚀 STARTING MULTIPLE PHOTOS UPLOAD:', JSON.stringify({
+      url,
+      siteId,
+      imageCount: imageUris.length,
+      latitude,
+      longitude,
+      description,
+      timestamp: new Date().toISOString(),
+    }, null, 2));
+
+    try {
+      const token = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      // Create FormData
+      const formData = new FormData();
+      
+      // Add images to FormData
+      imageUris.forEach((imageUri, index) => {
+        const filename = `photo_${Date.now()}_${index}.jpg`;
+        (formData as any).append('files', {
+          uri: imageUri,
+          type: 'image/jpeg',
+          name: filename,
+        });
+      });
+
+      // Add optional parameters
+      if (latitude !== undefined) {
+        formData.append('latitude', latitude.toString());
+      }
+      if (longitude !== undefined) {
+        formData.append('longitude', longitude.toString());
+      }
+      if (description) {
+        formData.append('description', description);
+      }
+
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+        'ngrok-skip-browser-warning': 'true',
+      };
+
+      // Create abort controller for timeout (longer timeout for multiple file uploads)
+      const controller = new AbortController();
+      const uploadTimeout = 120000; // 2 minutes for multiple files
+      const timeoutId = setTimeout(() => {
+        console.error('⏰ MULTIPLE PHOTOS UPLOAD TIMEOUT after', uploadTimeout, 'ms');
+        controller.abort();
+      }, uploadTimeout);
+
+      try {
+        const requestStartTime = Date.now();
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: formData,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+        const requestDuration = Date.now() - requestStartTime;
+
+        // Parse response
+        let responseData: any;
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          responseData = await response.json();
+        } else {
+          responseData = await response.text();
+        }
+
+        // 📝 LOG UPLOAD RESPONSE
+        if (response.ok) {
+          console.warn('✅ MULTIPLE PHOTOS UPLOAD SUCCESS:', JSON.stringify({
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${requestDuration}ms`,
+            contentType,
+            imageCount: imageUris.length,
+            data: responseData,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+        } else {
+          console.error('❌ MULTIPLE PHOTOS UPLOAD ERROR:', JSON.stringify({
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${requestDuration}ms`,
+            contentType,
+            error: responseData?.message || responseData,
+            fullResponse: responseData,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+        }
+
+        if (!response.ok) {
+          return {
+            error: responseData?.message || `HTTP ${response.status}: ${response.statusText}`,
+            success: false,
+          };
+        }
+
+        return {
+          data: responseData,
+          success: true,
+        };
+
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        // 📝 LOG FETCH ERROR
+        console.error('🔥 MULTIPLE PHOTOS UPLOAD FAILED:', JSON.stringify({
+          url,
+          error: fetchError.message,
+          errorType: fetchError.name,
+          imageCount: imageUris.length,
+          timestamp: new Date().toISOString(),
+        }, null, 2));
+        
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Upload timeout - please try with fewer images');
+        }
+        throw fetchError;
+      }
+
+    } catch (error: any) {
+      // 📝 LOG GENERAL ERROR
+      console.error('💥 MULTIPLE PHOTOS UPLOAD ERROR:', {
+        url,
+        siteId,
+        imageCount: imageUris.length,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      });
+      
+      return {
+        error: error.message || 'Multiple photos upload failed',
+        success: false,
+      };
+    }
+  }
 }
 
 // Export singleton instance

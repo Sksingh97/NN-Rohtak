@@ -35,6 +35,7 @@ export const API_ENDPOINTS = {
   // Photos
   PHOTOS: {
     LIST: '/photos/', // with query params: site_id, start_date, end_date
+    UPLOAD_MULTIPLE: '/photos/upload-multiple', // with query params: site_id
   },
   
   // User

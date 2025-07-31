@@ -7,8 +7,8 @@ const groupTaskImagesByDate = (taskImages: TaskImageRecord[]): GroupedTaskImages
   const grouped: GroupedTaskImages = {};
   
   taskImages.forEach(image => {
-    // Extract date from timestamp (YYYY-MM-DD format)
-    const date = image.timestamp.split('T')[0]; // Get just the date part
+    // Extract date from timestamp (YYYY-MM-DD format), handle missing timestamp
+    const date = image.timestamp ? image.timestamp.split('T')[0] : new Date().toISOString().split('T')[0];
     
     if (!grouped[date]) {
       grouped[date] = [];
@@ -17,9 +17,21 @@ const groupTaskImagesByDate = (taskImages: TaskImageRecord[]): GroupedTaskImages
     grouped[date].push(image);
   });
   
-  // Sort images within each date by timestamp (newest first)
+  // Sort images within each date by timestamp (newest first), creating new arrays
   Object.keys(grouped).forEach(date => {
-    grouped[date].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    grouped[date] = [...grouped[date]].sort((a, b) => {
+      const aDate = a.timestamp ? new Date(a.timestamp) : new Date(0);
+      const bDate = b.timestamp ? new Date(b.timestamp) : new Date(0);
+      
+      const aValid = !isNaN(aDate.getTime());
+      const bValid = !isNaN(bDate.getTime());
+      
+      if (!aValid && !bValid) return 0;
+      if (!aValid) return 1;
+      if (!bValid) return -1;
+      
+      return bDate.getTime() - aDate.getTime();
+    });
   });
   
   return grouped;
@@ -153,7 +165,7 @@ export const fetchMonthTasks = createAsyncThunk(
   }
 );
 
-// Async thunk for submitting task report
+// Async thunk for submitting task report with multiple photos
 export const submitTaskReport = createAsyncThunk(
   'attendance/submitTaskReport',
   async (
@@ -167,12 +179,12 @@ export const submitTaskReport = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await apiService.submitTaskReport(
+      const response = await apiService.uploadMultiplePhotos(
         siteId,
         imageUris,
-        latitude || 0,
-        longitude || 0,
-        description || 'Task completed'
+        latitude,
+        longitude,
+        description
       );
       
       if (response.success && response.data) {
@@ -305,10 +317,12 @@ const attendanceSlice = createSlice({
         state.isSubmittingTask = true;
         state.error = null;
       })
-      .addCase(submitTaskReport.fulfilled, (state, action: PayloadAction<AttendanceRecord>) => {
+      .addCase(submitTaskReport.fulfilled, (state, action: PayloadAction<TaskImageRecord[]>) => {
         state.isSubmittingTask = false;
-        state.todayTasks.unshift(action.payload);
-        state.monthTasks.unshift(action.payload);
+        // Add new task images to the existing taskImages array
+        state.taskImages = [...state.taskImages, ...action.payload];
+        // Regroup task images by date
+        state.groupedTaskImages = groupTaskImagesByDate(state.taskImages);
         state.error = null;
       })
       .addCase(submitTaskReport.rejected, (state, action) => {
