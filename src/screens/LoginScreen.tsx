@@ -20,6 +20,7 @@ import Input from '../components/Input';
 import { showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS } from '../constants/strings';
+import { requestAllPermissions } from '../utils/permissions';
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -50,6 +51,32 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       dispatch(clearError());
     }
   }, [error, dispatch]);
+
+  // Request permissions once when login screen loads
+  useEffect(() => {
+    const requestPermissions = async () => {
+      try {
+        console.log('🔐 Requesting app permissions silently...');
+        const result = await requestAllPermissions();
+        
+        if (result.granted) {
+          console.log('✅ All permissions granted successfully');
+        } else {
+          console.log('⚠️ Some permissions were denied:', result.denied);
+          // Note: We don't show any UI for denied permissions, just log them
+          // The app will request specific permissions when needed
+        }
+      } catch (error) {
+        console.error('❌ Error requesting permissions:', error);
+        // Silent failure - don't block the login process
+      }
+    };
+
+    // Request permissions with a small delay to avoid blocking the UI
+    const timeoutId = setTimeout(requestPermissions, 1000);
+    
+    return () => clearTimeout(timeoutId);
+  }, []); // Empty dependency array - run only once
 
   const validateForm = () => {
     let isValid = true;
@@ -116,6 +143,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               onChangeText={setPassword}
               placeholder="Enter your password"
               secureTextEntry
+              showPasswordToggle={true}
               error={passwordError}
             />
 

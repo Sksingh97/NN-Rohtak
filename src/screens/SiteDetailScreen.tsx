@@ -626,8 +626,12 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}>
         {/* Site Info */}
         <View style={styles.siteInfoCard}>
           <View style={styles.siteHeader}>
@@ -821,7 +825,9 @@ const styles = StyleSheet.create({
   },
   siteInfoCard: {
     backgroundColor: COLORS.WHITE,
-    margin: SIZES.MARGIN_MEDIUM,
+    marginHorizontal: SIZES.MARGIN_SMALL,
+    marginBottom: SIZES.MARGIN_SMALL,
+    marginTop: SIZES.MARGIN_SMALL, // Negative margin to pull card closer to header
     padding: SIZES.PADDING_SMALL,
     borderRadius: SIZES.BORDER_RADIUS_LARGE,
     ...SHADOWS.MEDIUM,
