@@ -51,10 +51,12 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     if (showTabs && user) {
-      dispatch(fetchMySites(user.id));
+      // Supervisor: Load both my sites and all sites
+      dispatch(fetchMySites());
       dispatch(fetchAllSites());
     } else if (user) {
-      dispatch(fetchMySites(user.id));
+      // Worker: Load only my sites
+      dispatch(fetchMySites());
     }
   }, [dispatch, showTabs, user]);
 
@@ -82,8 +84,10 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
   const handleRefresh = () => {
     if (user) {
       if (activeTab === 0) {
-        dispatch(fetchMySites(user.id));
+        // Refresh my sites
+        dispatch(fetchMySites());
       } else {
+        // Refresh all sites
         dispatch(fetchAllSites());
       }
     }

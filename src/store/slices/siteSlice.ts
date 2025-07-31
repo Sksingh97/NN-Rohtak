@@ -15,33 +15,31 @@ export const fetchAllSites = createAsyncThunk(
   'sites/fetchAllSites',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await apiService.getSites();
+      const response = await apiService.getAllSites();
       if (response.success && response.data) {
         return response.data;
       } else {
-        return rejectWithValue(response.error || 'Failed to fetch sites');
+        return rejectWithValue(response.error || 'Failed to fetch all sites');
       }
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to fetch sites');
+      return rejectWithValue(error.message || 'Failed to fetch all sites');
     }
   }
 );
 
-// Async thunk for fetching user's sites (for worker - same API, different usage)
+// Async thunk for fetching user's assigned sites (for worker and supervisor's "My Sites" tab)
 export const fetchMySites = createAsyncThunk(
   'sites/fetchMySites',
-  async (userId: string, { rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await apiService.getSites();
+      const response = await apiService.getMySites();
       if (response.success && response.data) {
-        // For now, worker sees all sites from the API
-        // In the future, you might want to filter based on worker assignment
         return response.data;
       } else {
-        return rejectWithValue(response.error || 'Failed to fetch user sites');
+        return rejectWithValue(response.error || 'Failed to fetch my sites');
       }
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to fetch user sites');
+      return rejectWithValue(error.message || 'Failed to fetch my sites');
     }
   }
 );

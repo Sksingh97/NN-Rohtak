@@ -15,31 +15,65 @@ export const loginUser = createAsyncThunk(
   'auth/loginUser',
   async ({ mobile, password }: { mobile: string; password: string }, { rejectWithValue }) => {
     try {
-      const response = await apiService.login(mobile, password);
+      // Step 1: Login to get user data and token
+      const loginResponse = await apiService.login(mobile, password);
       
-      if (response.success && response.data) {
-        // Check if role exists and is authorized
-        if (!response.data.role) {
-          return rejectWithValue('User role not found. Please contact administrator.');
-        }
+      if (!loginResponse.success || !loginResponse.data) {
+        return rejectWithValue(loginResponse.error || STRINGS.LOGIN_ERROR);
+      }
 
-        const userRole = response.data.role.toLowerCase();
+      // Check if role exists
+      if (!loginResponse.data.role) {
+        return rejectWithValue('User role not found. Please contact administrator.');
+      }
+
+      const userRole = loginResponse.data.role.toLowerCase();
+
+      // Step 2: Use the token to fetch allowed roles
+      try {
+        // Temporarily store the token for the API call
+        await apiService.storeAuthData(loginResponse.data);
+        
+        const rolesResponse = await apiService.getAppAllowedRoles();
+        
+        if (rolesResponse.success && rolesResponse.data && Array.isArray(rolesResponse.data)) {
+          const allowedRoles = rolesResponse.data;
+          
+          // Step 3: Check if user role is in allowed roles
+          if (!allowedRoles.includes(userRole)) {
+            // Clear the stored data since user is not allowed
+            await apiService.clearAuthData();
+            const allowedRolesText = allowedRoles.join(', ');
+            return rejectWithValue(`You are not authorized to access this app. Only ${allowedRolesText} are allowed.`);
+          }
+        } else {
+          // If roles API fails, fallback to default check
+          console.warn('Failed to fetch allowed roles, using default check');
+          if (userRole !== 'worker' && userRole !== 'supervisor') {
+            await apiService.clearAuthData();
+            return rejectWithValue('You are not authorized to access this app. Only workers and supervisors are allowed.');
+          }
+        }
+      } catch (rolesError) {
+        // If roles API fails, fallback to default check
+        console.warn('Error fetching allowed roles, using default check:', rolesError);
         if (userRole !== 'worker' && userRole !== 'supervisor') {
+          await apiService.clearAuthData();
           return rejectWithValue('You are not authorized to access this app. Only workers and supervisors are allowed.');
         }
-
-        // Map API response to our User type
-        const user: User = {
-          id: response.data.user_id, // Use UUID string directly from API
-          mobile: response.data.mobile || response.data.email || '', // Use mobile field first, fallback to email
-          name: response.data.name,
-          role: userRole === 'supervisor' ? 2 : 1, // Map supervisor to 2, worker to 1
-          token: response.data.access_token,
-        };
-        return user;
-      } else {
-        return rejectWithValue(response.error || STRINGS.LOGIN_ERROR);
       }
+
+      // Step 4: If we reach here, user is authorized
+      // Map API response to our User type
+      const user: User = {
+        id: loginResponse.data.user_id,
+        mobile: loginResponse.data.mobile || loginResponse.data.email || '',
+        name: loginResponse.data.name,
+        role: userRole === 'supervisor' ? 2 : 1,
+        token: loginResponse.data.access_token,
+      };
+      
+      return user;
     } catch (error: any) {
       return rejectWithValue(error.message || STRINGS.LOGIN_ERROR);
     }

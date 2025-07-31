@@ -368,9 +368,23 @@ class ApiService {
     }
   }
 
-  // Sites method
+  // Sites methods
+  public async getAllSites(): Promise<ApiResponse<any[]>> {
+    return this.get(API_ENDPOINTS.SITES.LIST);
+  }
+
+  public async getMySites(): Promise<ApiResponse<any[]>> {
+    return this.get(API_ENDPOINTS.SITES.MY_SITES);
+  }
+
+  // Legacy method for backward compatibility
   public async getSites(): Promise<ApiResponse<any[]>> {
     return this.get(API_ENDPOINTS.SITES.LIST);
+  }
+
+  // Get app allowed roles method (requires authentication)
+  public async getAppAllowedRoles(): Promise<ApiResponse<string[]>> {
+    return this.get(API_ENDPOINTS.USER.APP_ALLOWED_ROLES, {}, true); // Auth required
   }
 
   // Mark attendance method

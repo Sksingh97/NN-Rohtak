@@ -15,7 +15,8 @@ export const API_ENDPOINTS = {
   
   // Sites
   SITES: {
-    LIST: '/sites/',
+    LIST: '/sites/', // All sites (for supervisor)
+    MY_SITES: '/sites/mysite', // Worker's assigned sites
     DETAILS: '/sites', // with /:id appended
   },
   
@@ -41,6 +42,7 @@ export const API_ENDPOINTS = {
   // User
   USER: {
     PROFILE: '/user/profile',
+    APP_ALLOWED_ROLES: '/users/app-allowed-roles',
   },
 };
 
