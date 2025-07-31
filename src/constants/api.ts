@@ -23,7 +23,7 @@ export const API_ENDPOINTS = {
   // Attendance
   ATTENDANCE: {
     MARK: '/attendance/', // Query params: latitude, longitude, description
-    LIST: '/attendance', // with query params for filtering
+    LIST: '/attendance/', // with query params for filtering
   },
   
   // Tasks

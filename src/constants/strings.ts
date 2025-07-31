@@ -48,4 +48,6 @@ export const API_MESSAGES = {
   ATTENDANCE_MARKED: 'Attendance marked successfully',
   ATTENDANCE_ERROR: 'Failed to mark attendance. Please try again.',
   TASK_REPORT_ERROR: 'Failed to submit task report. Please try again.',
+  COMPRESSING_IMAGE: 'Compressing image...',
+  COMPRESSING_IMAGES: 'Compressing images...',
 };

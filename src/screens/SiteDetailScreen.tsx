@@ -45,6 +45,8 @@ import LocationSubmissionModal from '../components/LocationSubmissionModal';
 import MultiImageLocationSubmissionModal from '../components/MultiImageLocationSubmissionModal';
 import ImagePickerModal from '../components/ImagePickerModal';
 import { requestCameraPermission, requestLocationPermission, formatDateTime, formatDateForGrouping, getCurrentMonthRange, getLastMonthRange } from '../utils/helpers';
+import { compressImage, compressMultipleImages } from '../utils/imageUtils';
+import { getAttendanceCompressionOptions, getTaskReportCompressionOptions } from '../constants/imageCompression';
 import { showSuccessToast, showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS, API_MESSAGES } from '../constants/strings';
@@ -337,9 +339,20 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     }
 
     try {
+      // Compress image before submission to reduce network overhead
+      console.log('🗜️ Compressing attendance image...');
+      const compressionOptions = getAttendanceCompressionOptions();
+      const compressedImageUri = await compressImage(
+        imageWithOverlay,
+        compressionOptions.quality,
+        compressionOptions.maxWidth,
+        compressionOptions.maxHeight
+      );
+      console.log('✅ Attendance image compressed successfully');
+
       await dispatch(markAttendance({
         siteId: site.id,
-        imageUri: imageWithOverlay,
+        imageUri: compressedImageUri, // Use compressed image
         latitude: attendanceLocation.latitude,
         longitude: attendanceLocation.longitude,
         description: address, // Use reverse geocoded address as description
@@ -372,10 +385,21 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     }
 
     try {
+      // Compress images before submission to reduce network overhead
+      console.log('🗜️ Compressing task report images...');
+      const compressionOptions = getTaskReportCompressionOptions();
+      const compressedImageUris = await compressMultipleImages(
+        processedImageUris,
+        compressionOptions.quality,
+        compressionOptions.maxWidth,
+        compressionOptions.maxHeight
+      );
+      console.log('✅ Task report images compressed successfully');
+
       // Use existing submitTaskReport action
       await dispatch(submitTaskReport({
         siteId: site.id,
-        imageUris: processedImageUris,
+        imageUris: compressedImageUris, // Use compressed images
         latitude: taskLocation.latitude,
         longitude: taskLocation.longitude,
         description: address, // Use reverse geocoded address as description

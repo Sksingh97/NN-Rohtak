@@ -624,3 +624,108 @@ export const networkAwareReverseGeocode = async (
 // 5 decimal places: ~1.1 m accuracy
 // 6 decimal places: ~11 cm accuracy
 // 7 decimal places: ~1.1 cm accuracy (optimal for reverse geocoding)
+
+import { Image } from 'react-native-compressor';
+
+/**
+ * Compress image to reduce network overhead
+ * @param imageUri - Original image URI
+ * @param quality - Compression quality (0-1, default: 0.7)
+ * @param maxWidth - Maximum width in pixels (default: 1024)
+ * @param maxHeight - Maximum height in pixels (default: 1024)
+ * @returns Promise<string> - Compressed image URI
+ */
+export const compressImage = async (
+  imageUri: string,
+  quality: number = 0.8,
+  maxWidth: number = 1024,
+  maxHeight: number = 1024
+): Promise<string> => {
+  try {
+    console.warn('🗜️ COMPRESSING IMAGE:', JSON.stringify({
+      originalUri: imageUri,
+      quality,
+      maxWidth,
+      maxHeight,
+      timestamp: new Date().toISOString(),
+    }, null, 2));
+
+    const compressedUri = await Image.compress(imageUri, {
+      compressionMethod: 'auto',
+      quality,
+      maxWidth,
+      maxHeight,
+      output: 'jpg', // Force JPEG output for better compression
+    });
+
+    console.warn('✅ IMAGE COMPRESSION SUCCESS:', JSON.stringify({
+      originalUri: imageUri,
+      compressedUri,
+      timestamp: new Date().toISOString(),
+    }, null, 2));
+
+    return compressedUri;
+  } catch (error: any) {
+    console.error('💥 IMAGE COMPRESSION FAILED:', JSON.stringify({
+      originalUri: imageUri,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    }, null, 2));
+
+    // Return original URI if compression fails
+    console.warn('⚠️ USING ORIGINAL IMAGE DUE TO COMPRESSION FAILURE');
+    return imageUri;
+  }
+};
+
+/**
+ * Compress multiple images concurrently
+ * @param imageUris - Array of original image URIs
+ * @param quality - Compression quality (0-1, default: 0.7)
+ * @param maxWidth - Maximum width in pixels (default: 1024)
+ * @param maxHeight - Maximum height in pixels (default: 1024)
+ * @returns Promise<string[]> - Array of compressed image URIs
+ */
+export const compressMultipleImages = async (
+  imageUris: string[],
+  quality: number = 0.8,
+  maxWidth: number = 1024,
+  maxHeight: number = 1024
+): Promise<string[]> => {
+  console.warn('🗜️ COMPRESSING MULTIPLE IMAGES:', JSON.stringify({
+    imageCount: imageUris.length,
+    quality,
+    maxWidth,
+    maxHeight,
+    timestamp: new Date().toISOString(),
+  }, null, 2));
+
+  try {
+    // Compress all images in parallel for better performance
+    const compressionPromises = imageUris.map(async (imageUri, index) => {
+      try {
+        const compressedUri = await compressImage(imageUri, quality, maxWidth, maxHeight);
+        console.log(`✅ Image ${index + 1}/${imageUris.length} compressed successfully`);
+        return compressedUri;
+      } catch (error: any) {
+        console.error(`❌ Image ${index + 1}/${imageUris.length} compression failed:`, error.message);
+        // Return original URI if individual compression fails
+        return imageUri;
+      }
+    });
+
+    const compressedUris = await Promise.all(compressionPromises);
+
+    console.warn('✅ MULTIPLE IMAGES COMPRESSION COMPLETE:', JSON.stringify({
+      originalCount: imageUris.length,
+      compressedCount: compressedUris.length,
+      timestamp: new Date().toISOString(),
+    }, null, 2));
+
+    return compressedUris;
+  } catch (error: any) {
+    console.error('💥 MULTIPLE IMAGES COMPRESSION FAILED:', error.message);
+    // Return original URIs if batch compression fails
+    return imageUris;
+  }
+};
