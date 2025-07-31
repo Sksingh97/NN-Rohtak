@@ -1,7 +1,6 @@
 import React, { forwardRef, useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
 import ViewShot from 'react-native-view-shot';
-import { MapPinIcon } from 'react-native-heroicons/outline';
 import { COLORS, SIZES } from '../constants/theme';
 
 interface LocationOverlayProps {
@@ -78,7 +77,13 @@ export const ImageWithLocationOverlay = forwardRef<ViewShot, LocationOverlayProp
         <View style={styles.overlay}>
           <View style={styles.overlayContainer}>
             <View style={styles.mapIconContainer}>
-              <MapPinIcon size={16} color={COLORS.WHITE} />
+              <Image 
+                source={require('../assets/mapIconLatest.jpg')} 
+                style={styles.mapIcon}
+                height={50}
+                width={50}
+                resizeMode="contain"
+              />
             </View>
             <View style={styles.overlayContent}>
               <Text style={styles.addressText} numberOfLines={1}>{locationData.address}</Text>
@@ -125,12 +130,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapIconContainer: {
-    marginRight: 6,
+    width: '30%',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingRight: 8,
+  },
+  mapIcon: {
+    width: 50,
+    height: 50,
+    // tintColor: COLORS.WHITE,
+    opacity: 1,
   },
   overlayContent: {
-    flex: 1,
+    width: '70%',
     justifyContent: 'center',
   },
   addressText: {

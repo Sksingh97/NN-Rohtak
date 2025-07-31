@@ -22,14 +22,21 @@ export interface AttendanceRecord {
   id: string; // UUID from API
   user_id: string;
   site_id: string;
-  description: string;
-  lat: number;
-  lng: number;
+  date: string;
+  status: boolean;
+  notes: string;
   image_url: string;
   filename: string;
-  timestamp: string;
-  file_size: number | null;
-  mime_type: string | null;
+  lat: number;
+  lng: number;
+  check_in_time: string;
+  check_out_time: string | null;
+  created_at: string;
+  timestamp: string; // For compatibility, we'll map from check_in_time
+  // Legacy fields for backward compatibility
+  description?: string;
+  file_size?: number | null;
+  mime_type?: string | null;
 }
 
 export interface TaskReportRecord {
@@ -61,6 +68,7 @@ export interface AttendanceState {
   monthAttendance: AttendanceRecord[];
   todayTasks: AttendanceRecord[];
   monthTasks: AttendanceRecord[];
+  attendanceRecords: AttendanceRecord[]; // New field for site-based attendance
   isLoading: boolean;
   isMarkingAttendance: boolean;
   isSubmittingTask: boolean;

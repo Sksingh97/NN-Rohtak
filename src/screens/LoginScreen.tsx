@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -86,7 +87,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           keyboardShouldPersistTaps="handled">
           <View style={styles.logoContainer}>
             <View style={styles.logoPlaceholder}>
-              <Text style={styles.logoText}>SBM</Text>
+              <Image 
+                source={require('../assets/appIcon.png')} 
+                style={styles.logoImage}
+                resizeMode="cover"
+              />
             </View>
             <Text style={styles.title}>Swachh Bharat Mission</Text>
             <Text style={styles.subtitle}>Rohtak</Text>
@@ -146,19 +151,31 @@ const styles = StyleSheet.create({
     marginBottom: SIZES.MARGIN_EXTRA_LARGE * 2,
   },
   logoPlaceholder: {
-    width: 80,
-    height: 80,
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 40,
+    width: 120,
+    height: 120,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SIZES.MARGIN_LARGE,
-    ...SHADOWS.MEDIUM,
+    backgroundColor: COLORS.WHITE,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
   logoText: {
     fontSize: 32,
     fontWeight: 'bold',
     color: COLORS.WHITE,
+  },
+  logoImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 20,
   },
   title: {
     fontSize: SIZES.FONT_SIZE_HEADER,

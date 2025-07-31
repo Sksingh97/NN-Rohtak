@@ -7,11 +7,36 @@ const initialState: AttendanceState = {
   monthAttendance: [],
   todayTasks: [],
   monthTasks: [],
+  attendanceRecords: [], // Add new field for site-based attendance
   isLoading: false,
   error: null,
   isMarkingAttendance: false,
   isSubmittingTask: false,
 };
+
+// New async thunk for fetching attendance by site
+export const fetchAttendanceBySite = createAsyncThunk(
+  'attendance/fetchAttendanceBySite',
+  async ({ siteId, startDate, endDate }: { siteId: string; startDate?: string; endDate?: string }, { rejectWithValue }) => {
+    try {
+      const response = await apiService.getAttendance(siteId, startDate, endDate);
+      
+      if (response.success && response.data) {
+        // Map the response to ensure timestamp field exists for compatibility
+        const mappedData = response.data.map(record => ({
+          ...record,
+          timestamp: record.check_in_time, // Map check_in_time to timestamp for compatibility
+          description: record.notes, // Map notes to description for compatibility
+        }));
+        return mappedData;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch attendance records');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch attendance records');
+    }
+  }
+);
 
 // Async thunk for fetching today's attendance
 export const fetchTodayAttendance = createAsyncThunk(
@@ -245,6 +270,20 @@ const attendanceSlice = createSlice({
       })
       .addCase(submitTaskReport.rejected, (state, action) => {
         state.isSubmittingTask = false;
+        state.error = action.payload as string;
+      })
+      // Handle fetchAttendanceBySite
+      .addCase(fetchAttendanceBySite.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAttendanceBySite.fulfilled, (state, action: PayloadAction<AttendanceRecord[]>) => {
+        state.isLoading = false;
+        state.attendanceRecords = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchAttendanceBySite.rejected, (state, action) => {
+        state.isLoading = false;
         state.error = action.payload as string;
       });
   },

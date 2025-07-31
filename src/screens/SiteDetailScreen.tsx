@@ -36,6 +36,7 @@ import {
   fetchMonthAttendance,
   fetchTodayTasks,
   fetchMonthTasks,
+  fetchAttendanceBySite,
   markAttendance,
   submitTaskReport,
 } from '../store/slices/attendanceSlice';
@@ -43,7 +44,7 @@ import { withLoader } from '../components/Loader';
 import Button from '../components/Button';
 import LocationSubmissionModal from '../components/LocationSubmissionModal';
 import MultiImageLocationSubmissionModal from '../components/MultiImageLocationSubmissionModal';
-import { requestCameraPermission, requestLocationPermission, formatDateTime } from '../utils/helpers';
+import { requestCameraPermission, requestLocationPermission, formatDateTime, getCurrentMonthRange, getLastMonthRange } from '../utils/helpers';
 import { showSuccessToast, showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS, API_MESSAGES } from '../constants/strings';
@@ -89,18 +90,37 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   const { site } = route.params;
   const { user } = useSelector((state: RootState) => state.auth);
   const { 
+    attendanceRecords,
     todayAttendance, 
     monthAttendance, 
     todayTasks = [], 
     monthTasks = [],
+    isLoading,
     isMarkingAttendance,
     isSubmittingTask = false
   } = useSelector((state: RootState) => state.attendance);
 
+  // Function to fetch attendance for specific date range
+  const fetchAttendanceForTab = (tabIndex: number) => {
+    if (tabIndex === 0) {
+      // This Month
+      const { startDate, endDate } = getCurrentMonthRange();
+      console.log('Fetching This Month attendance:', { startDate, endDate });
+      dispatch(fetchAttendanceBySite({ siteId: site.id, startDate, endDate }));
+    } else {
+      // Last Month
+      const { startDate, endDate } = getLastMonthRange();
+      console.log('Fetching Last Month attendance:', { startDate, endDate });
+      dispatch(fetchAttendanceBySite({ siteId: site.id, startDate, endDate }));
+    }
+  };
+
   useEffect(() => {
+    // Fetch attendance records for the current tab (default to current month)
+    fetchAttendanceForTab(activeTab);
+    
+    // Keep existing user-based fetching for tasks if needed
     if (user?.id) {
-      dispatch(fetchTodayAttendance(user.id)); // This Month attendance
-      dispatch(fetchMonthAttendance(user.id)); // Last Month attendance
       dispatch(fetchTodayTasks(user.id)); // This Month tasks
       dispatch(fetchMonthTasks(user.id)); // Last Month tasks
     }
@@ -367,7 +387,10 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       latitude: attendanceLocation.latitude,
       longitude: attendanceLocation.longitude,
       description: site.address, // Use site address as description
-    }));
+    })).then(() => {
+      // Refresh attendance data after successful submission
+      fetchAttendanceForTab(activeTab);
+    });
     
     setIsAttendanceModalVisible(false);
     setCapturedAttendanceImage(null);
@@ -468,6 +491,9 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   const renderAttendanceItem = ({ item }: { item: AttendanceRecord }) => {
     const displayImage = item.image_url;
     const allImages = [item.image_url];
+    
+    // Use check_in_time for new format, fallback to timestamp for compatibility
+    const displayTime = item.check_in_time || item.timestamp;
 
     return (
       <View style={styles.attendanceItem}>
@@ -475,7 +501,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
           <Image source={{ uri: displayImage }} style={styles.attendanceImage} />
         </TouchableOpacity>
         <Text style={styles.attendanceTime}>
-          {formatDateTime(item.timestamp)}
+          {formatDateTime(displayTime)}
         </Text>
         <Text style={styles.recordType}>
           Attendance
@@ -484,15 +510,17 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     );
   };
 
-  // Combine attendance and task records for display
+  // Use attendance records from API (already filtered by date) and combine with tasks
   const currentAttendance = activeTab === 0 
-    ? [...todayAttendance, ...todayTasks]
-    : [...monthAttendance, ...monthTasks];
+    ? [...attendanceRecords, ...todayTasks]
+    : [...attendanceRecords, ...monthTasks];
 
-  // Sort by timestamp (newest first)
-  const sortedRecords = currentAttendance.sort((a, b) => 
-    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
+  // Sort by timestamp (newest first) - use check_in_time for new format
+  const sortedRecords = currentAttendance.sort((a, b) => {
+    const aTime = a.check_in_time || a.timestamp;
+    const bTime = b.check_in_time || b.timestamp;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -527,14 +555,20 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tab, activeTab === 0 && styles.activeTab]}
-            onPress={() => setActiveTab(0)}>
+            onPress={() => {
+              setActiveTab(0);
+              fetchAttendanceForTab(0);
+            }}>
             <Text style={[styles.tabText, activeTab === 0 && styles.activeTabText]}>
               This Month
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, activeTab === 1 && styles.activeTab]}
-            onPress={() => setActiveTab(1)}>
+            onPress={() => {
+              setActiveTab(1);
+              fetchAttendanceForTab(1);
+            }}>
             <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
               Last Month
             </Text>

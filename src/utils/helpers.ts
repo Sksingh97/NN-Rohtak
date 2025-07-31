@@ -71,6 +71,7 @@ export const formatDate = (dateString: string): string => {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    timeZone: 'UTC', // Show UTC date as received from server
   });
 };
 
@@ -80,6 +81,7 @@ export const formatTime = (dateString: string): string => {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
+    timeZone: 'UTC', // Show UTC time as received from server
   });
 };
 
@@ -92,6 +94,7 @@ export const formatDateTime = (dateString: string): string => {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
+    timeZone: 'UTC', // Show UTC time as received from server
   });
 };
 
@@ -114,4 +117,37 @@ export const debounce = <T extends (...args: any[]) => any>(
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => func.apply(null, args), delay);
   };
+};
+
+// Date range helpers for attendance filtering
+export const getCurrentMonthRange = (): { startDate: string; endDate: string } => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-based (0 = January, 11 = December)
+  
+  // Last day of current month
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  
+  const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  
+  return { startDate, endDate };
+};
+
+export const getLastMonthRange = (): { startDate: string; endDate: string } => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-based
+  
+  // Calculate last month's year and month
+  const lastMonthYear = month === 0 ? year - 1 : year;
+  const lastMonth = month === 0 ? 11 : month - 1; // 0-based
+  
+  // Last day of last month
+  const lastDay = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+  
+  const startDate = `${lastMonthYear}-${String(lastMonth + 1).padStart(2, '0')}-01`;
+  const endDate = `${lastMonthYear}-${String(lastMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  
+  return { startDate, endDate };
 };

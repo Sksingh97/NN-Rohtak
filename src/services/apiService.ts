@@ -550,7 +550,24 @@ class ApiService {
   }
 
   // Attendance fetching methods
+  public async getAttendance(siteId: string, startDate?: string, endDate?: string): Promise<ApiResponse<AttendanceRecord[]>> {
+    const queryParams = new URLSearchParams({
+      site_id: siteId,
+    });
+    
+    if (startDate) {
+      queryParams.append('start_date', startDate);
+    }
+    
+    if (endDate) {
+      queryParams.append('end_date', endDate);
+    }
+    
+    return this.get(`${API_ENDPOINTS.ATTENDANCE.LIST}?${queryParams.toString()}`);
+  }
+
   public async getTodayAttendance(userId: string): Promise<ApiResponse<AttendanceRecord[]>> {
+    // This method is kept for backward compatibility but not used with new API
     const queryParams = new URLSearchParams({
       user_id: userId,
       period: 'today',
@@ -559,6 +576,7 @@ class ApiService {
   }
 
   public async getMonthAttendance(userId: string): Promise<ApiResponse<AttendanceRecord[]>> {
+    // This method is kept for backward compatibility but not used with new API
     const queryParams = new URLSearchParams({
       user_id: userId,
       period: 'month',

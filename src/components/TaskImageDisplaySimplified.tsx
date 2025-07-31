@@ -1,7 +1,6 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import ViewShot from 'react-native-view-shot';
-import { MapPinIcon } from 'react-native-heroicons/outline';
 import { COLORS } from '../constants/theme';
 
 interface TaskImageDisplayProps {
@@ -109,7 +108,13 @@ export const TaskImageDisplaySimplified = forwardRef<TaskImageDisplayRef, TaskIm
         }]}>
           <View style={styles.overlayContainer}>
             <View style={styles.mapIconContainer}>
-              <MapPinIcon size={iconSize} color={COLORS.WHITE} />
+              <Image 
+                source={require('../assets/mapIconLatest.jpg')} 
+                style={styles.mapIcon}
+                height={50}
+                width={50}
+                resizeMode="contain"
+              />
             </View>
             <View style={styles.overlayContent}>
               <Text 
@@ -164,12 +169,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapIconContainer: {
-    marginRight: 6,
+    width: '30%',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingRight: 8,
+  },
+  mapIcon: {
+    tintColor: COLORS.WHITE,
+    opacity: 1,
   },
   overlayContent: {
-    flex: 1,
+    width: '70%',
     justifyContent: 'center',
   },
   addressText: {
