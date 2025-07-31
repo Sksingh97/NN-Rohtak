@@ -6,6 +6,7 @@ import {
   Modal,
   TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import { ImageWithLocationOverlay } from './ImageWithLocationOverlay';
@@ -97,29 +98,35 @@ export const LocationSubmissionModal: React.FC<LocationSubmissionModalProps> = (
         <View style={styles.modalContainer}>
           <Text style={styles.modalTitle}>{title}</Text>
           
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-              <Text style={styles.loadingText}>Loading location details...</Text>
+          <ScrollView 
+            style={styles.scrollContent}
+            contentContainerStyle={styles.scrollContentContainer}
+            showsVerticalScrollIndicator={false}
+            bounces={false}>
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+                <Text style={styles.loadingText}>Loading location details...</Text>
+              </View>
+            ) : (
+              <View style={styles.imageContainer}>
+                <ImageWithLocationOverlay
+                  ref={viewShotRef}
+                  imageUri={imageUri}
+                  latitude={latitude}
+                  longitude={longitude}
+                  timestamp={timestamp}
+                  address={address}
+                />
+              </View>
+            )}
+            
+            <View style={styles.infoContainer}>
+              <Text style={styles.infoText}>
+                The image will be saved with location and timestamp information embedded.
+              </Text>
             </View>
-          ) : (
-            <View style={styles.imageContainer}>
-              <ImageWithLocationOverlay
-                ref={viewShotRef}
-                imageUri={imageUri}
-                latitude={latitude}
-                longitude={longitude}
-                timestamp={timestamp}
-                address={address}
-              />
-            </View>
-          )}
-          
-          <View style={styles.infoContainer}>
-            <Text style={styles.infoText}>
-              The image will be saved with location and timestamp information embedded.
-            </Text>
-          </View>
+          </ScrollView>
           
           <View style={styles.buttonContainer}>
             <TouchableOpacity
@@ -160,7 +167,9 @@ const styles = StyleSheet.create({
     padding: SIZES.PADDING_LARGE,
     width: '95%',
     maxWidth: 450,
-    maxHeight: '90%',
+    maxHeight: '70%', // Increased to allow more space
+    flex: 1,
+    marginVertical: SIZES.MARGIN_LARGE,
     ...SHADOWS.MEDIUM,
   },
   modalTitle: {
@@ -169,6 +178,12 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_PRIMARY,
     textAlign: 'center',
     marginBottom: SIZES.MARGIN_LARGE,
+  },
+  scrollContent: {
+    flex: 1, // Allow scroll content to take available space
+  },
+  scrollContentContainer: {
+    flexGrow: 1, // Allow content to expand as needed
   },
   loadingContainer: {
     alignItems: 'center',
@@ -183,6 +198,7 @@ const styles = StyleSheet.create({
     marginBottom: SIZES.MARGIN_LARGE,
     borderRadius: SIZES.BORDER_RADIUS_MEDIUM,
     overflow: 'hidden',
+    // Remove fixed height to allow full image display
     ...SHADOWS.LIGHT,
   },
   infoContainer: {
