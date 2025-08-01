@@ -44,6 +44,7 @@ import Button from '../components/Button';
 import LocationSubmissionModal from '../components/LocationSubmissionModal';
 import MultiImageLocationSubmissionModal from '../components/MultiImageLocationSubmissionModal';
 import ImagePickerModal from '../components/ImagePickerModal';
+import { ATTENDANCE_SHOW_SELECT_FROM_GALLERY } from '../constants/attendanceConfig';
 import { requestCameraPermission, requestLocationPermission, formatDateTime, formatDateForGrouping, getCurrentMonthRange, getLastMonthRange } from '../utils/helpers';
 import { compressImage, compressMultipleImages } from '../utils/imageUtils';
 import { getAttendanceCompressionOptions, getTaskReportCompressionOptions } from '../constants/imageCompression';
@@ -89,6 +90,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   
   // Image picker modal states
   const [isTaskPickerVisible, setIsTaskPickerVisible] = useState(false);
+  const [isAttendancePickerVisible, setIsAttendancePickerVisible] = useState(false);
   
   // Processing states for user feedback
   const [isProcessingAttendanceImage, setIsProcessingAttendanceImage] = useState(false);
@@ -171,9 +173,15 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   };
 
   const showAttendanceImagePicker = async () => {
-    // For attendance, only allow camera capture to ensure user is physically present
-    // Don't show picker modal - directly open camera
-    await openAttendanceCamera();
+    // Check configuration to determine if gallery option should be shown
+    if (ATTENDANCE_SHOW_SELECT_FROM_GALLERY) {
+      // Show picker modal with both camera and gallery options
+      setIsAttendancePickerVisible(true);
+    } else {
+      // For security, only allow camera capture to ensure user is physically present
+      // Don't show picker modal - directly open camera
+      await openAttendanceCamera();
+    }
   };
 
   const showTaskImagePicker = () => {
@@ -818,6 +826,16 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         onGallery={openTaskGalleryMultiple}
         title="Add Task Photos"
         allowMultiple={true}
+      />
+
+      {/* Attendance Image Picker Modal */}
+      <ImagePickerModal
+        visible={isAttendancePickerVisible}
+        onClose={() => setIsAttendancePickerVisible(false)}
+        onCamera={openAttendanceCamera}
+        onGallery={openAttendanceGallery}
+        title="Mark Attendance"
+        allowMultiple={false}
       />
 
       {/* Photo Preview Modal */}
