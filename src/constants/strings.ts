@@ -16,6 +16,7 @@ export const STRINGS = {
   // Site Detail Screen
   SITE_DETAILS: 'Site Details',
   MARK_ATTENDANCE: 'Mark Attendance',
+  PROCESSING_IMAGE: 'Processing...',
   TODAY: 'Today',
   MONTH: 'Month',
   

@@ -88,8 +88,11 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   } | null>(null);
   
   // Image picker modal states
-  const [isAttendancePickerVisible, setIsAttendancePickerVisible] = useState(false);
   const [isTaskPickerVisible, setIsTaskPickerVisible] = useState(false);
+  
+  // Processing states for user feedback
+  const [isProcessingAttendanceImage, setIsProcessingAttendanceImage] = useState(false);
+  const [isProcessingTaskImages, setIsProcessingTaskImages] = useState(false);
   
   const dispatch = useDispatch<AppDispatch>();
   
@@ -167,8 +170,10 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     });
   };
 
-  const showAttendanceImagePicker = () => {
-    setIsAttendancePickerVisible(true);
+  const showAttendanceImagePicker = async () => {
+    // For attendance, only allow camera capture to ensure user is physically present
+    // Don't show picker modal - directly open camera
+    await openAttendanceCamera();
   };
 
   const showTaskImagePicker = () => {
@@ -238,8 +243,12 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     const imageUri = response.assets[0].uri!;
     console.log('Attendance image selected:', imageUri);
     
-    // Get current location
+    // Show processing indicator
+    console.log('🔄 Starting attendance image processing...');
+    setIsProcessingAttendanceImage(true);
+    
     try {
+      // Get current location
       const hasLocationPermission = await requestLocationPermission();
       if (!hasLocationPermission) {
         showErrorToast('Location permission is required to add location overlay');
@@ -261,6 +270,10 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     } catch (error) {
       showErrorToast('Failed to get location. Please try again.');
       console.error('Location error:', error);
+    } finally {
+      // Hide processing indicator
+      console.log('✅ Attendance image processing completed');
+      setIsProcessingAttendanceImage(false);
     }
   };
 
@@ -271,11 +284,15 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
 
     const imageUri = response.assets[0].uri!;
     
-    let currentTaskLocation = taskLocation;
+    // Show processing indicator
+    console.log('🔄 Starting task image processing...');
+    setIsProcessingTaskImages(true);
     
-    // Get location for task images if not already captured
-    if (!currentTaskLocation) {
-      try {
+    try {
+      let currentTaskLocation = taskLocation;
+      
+      // Get location for task images if not already captured
+      if (!currentTaskLocation) {
         const hasLocationPermission = await requestLocationPermission();
         if (!hasLocationPermission) {
           showErrorToast('Location permission is required to add location overlay');
@@ -292,17 +309,20 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         };
         
         setTaskLocation(currentTaskLocation);
-      } catch (error) {
-        showErrorToast('Failed to get location. Please try again.');
-        console.error('Location error:', error);
-        return;
       }
+      
+      // Append to existing images if any, otherwise create new array
+      const newImages = [...capturedTaskImages, imageUri];
+      setCapturedTaskImages(newImages);
+      setIsTaskReportModalVisible(true);
+    } catch (error) {
+      showErrorToast('Failed to get location. Please try again.');
+      console.error('Location error:', error);
+    } finally {
+      // Hide processing indicator
+      console.log('✅ Task image processing completed');
+      setIsProcessingTaskImages(false);
     }
-    
-    // Append to existing images if any, otherwise create new array
-    const newImages = [...capturedTaskImages, imageUri];
-    setCapturedTaskImages(newImages);
-    setIsTaskReportModalVisible(true);
   };
 
   const handleTaskMultipleImageResponse = async (response: ImagePickerResponse) => {
@@ -310,11 +330,15 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       return;
     }
 
-    let currentTaskLocation = taskLocation;
+    // Show processing indicator
+    console.log('🔄 Starting multiple task images processing...');
+    setIsProcessingTaskImages(true);
+    
+    try {
+      let currentTaskLocation = taskLocation;
 
-    // Get location for task images if not already captured
-    if (!currentTaskLocation) {
-      try {
+      // Get location for task images if not already captured
+      if (!currentTaskLocation) {
         const hasLocationPermission = await requestLocationPermission();
         if (!hasLocationPermission) {
           showErrorToast('Location permission is required to add location overlay');
@@ -331,19 +355,22 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         };
         
         setTaskLocation(currentTaskLocation);
-      } catch (error) {
-        showErrorToast('Failed to get location. Please try again.');
-        console.error('Location error:', error);
-        return;
       }
-    }
 
-    const newImageUris = response.assets.map(asset => asset.uri!);
-    
-    // Append to existing images if any, otherwise use new images
-    const allImages = [...capturedTaskImages, ...newImageUris];
-    setCapturedTaskImages(allImages);
-    setIsTaskReportModalVisible(true);
+      const newImageUris = response.assets.map(asset => asset.uri!);
+      
+      // Append to existing images if any, otherwise use new images
+      const allImages = [...capturedTaskImages, ...newImageUris];
+      setCapturedTaskImages(allImages);
+      setIsTaskReportModalVisible(true);
+    } catch (error) {
+      showErrorToast('Failed to get location. Please try again.');
+      console.error('Location error:', error);
+    } finally {
+      // Hide processing indicator
+      console.log('✅ Multiple task images processing completed');
+      setIsProcessingTaskImages(false);
+    }
   };
 
   const submitAttendance = async (imageWithOverlay: string, address: string) => {
@@ -662,20 +689,21 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
           <Button
-            title={STRINGS.MARK_ATTENDANCE}
+            title={isProcessingAttendanceImage ? STRINGS.PROCESSING_IMAGE : STRINGS.MARK_ATTENDANCE}
             onPress={showAttendanceImagePicker}
-            loading={isMarkingAttendance}
+            loading={isMarkingAttendance || isProcessingAttendanceImage}
             style={StyleSheet.flatten([
               styles.halfWidthButton,
               isAttendanceDisabled && styles.disabledButton
             ])}
-            disabled={isAttendanceDisabled} // Disable button if attendance is disabled
+            disabled={isAttendanceDisabled || isProcessingAttendanceImage} // Disable during processing
           />
           
           <Button
-            title="Add Task Report"
+            title={isProcessingTaskImages ? STRINGS.PROCESSING_IMAGE : "Add Task Report"}
             onPress={showTaskImagePicker}
-            loading={isSubmittingTask}
+            loading={isSubmittingTask || isProcessingTaskImages}
+            disabled={isProcessingTaskImages} // Disable during processing
             style={styles.taskReportButtonRight}
           />
         </View>
@@ -685,6 +713,18 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
           <View style={styles.infoContainer}>
             <Text style={styles.infoText}>
               💡 Attendance marking is not available when viewing sites from "All Sites" tab. Only task reports can be submitted for sites you don't directly manage.
+            </Text>
+          </View>
+        )}
+
+        {/* Show processing message when images are being processed */}
+        {(isProcessingAttendanceImage || isProcessingTaskImages) && (
+          <View style={styles.processingContainer}>
+            <Text style={styles.processingText}>
+              📸 {isProcessingAttendanceImage ? 'Processing attendance image...' : 'Processing task images...'}
+            </Text>
+            <Text style={styles.processingSubtext}>
+              Getting location and preparing image data
             </Text>
           </View>
         )}
@@ -768,16 +808,6 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
           setCapturedTaskImages([]);
           setTaskLocation(null);
         }}
-      />
-
-      {/* Attendance Image Picker Modal */}
-      <ImagePickerModal
-        visible={isAttendancePickerVisible}
-        onClose={() => setIsAttendancePickerVisible(false)}
-        onCamera={openAttendanceCamera}
-        onGallery={openAttendanceGallery}
-        title="Select Attendance Photo"
-        allowMultiple={false}
       />
 
       {/* Task Image Picker Modal */}
@@ -942,6 +972,28 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_SIZE_SMALL,
     color: COLORS.TEXT_SECONDARY,
     lineHeight: 18,
+  },
+  processingContainer: {
+    marginHorizontal: SIZES.MARGIN_MEDIUM,
+    marginBottom: SIZES.MARGIN_MEDIUM,
+    paddingHorizontal: SIZES.PADDING_MEDIUM,
+    paddingVertical: SIZES.PADDING_SMALL,
+    backgroundColor: '#FFF3E0',
+    borderRadius: SIZES.BORDER_RADIUS_SMALL,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF9800',
+  },
+  processingText: {
+    fontSize: SIZES.FONT_SIZE_SMALL,
+    color: '#E65100',
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  processingSubtext: {
+    fontSize: SIZES.FONT_SIZE_SMALL - 1,
+    color: '#BF360C',
+    lineHeight: 16,
+    marginTop: 2,
   },
   multiImageIndicator: {
     position: 'absolute',
