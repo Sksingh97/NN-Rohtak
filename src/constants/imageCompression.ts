@@ -1,9 +1,9 @@
 // Image compression configuration
 export const IMAGE_COMPRESSION_CONFIG = {
   // Quality settings (0-1)
-  ATTENDANCE_QUALITY: 0.8, // 70% quality for attendance images
-  TASK_REPORT_QUALITY: 0.8, // 70% quality for task report images
-  
+  ATTENDANCE_QUALITY: 0.8, // 80% quality for attendance images
+  TASK_REPORT_QUALITY: 0.8, // 80% quality for task report images
+
   // Size limits (in pixels)
   ATTENDANCE_MAX_WIDTH: 1024,
   ATTENDANCE_MAX_HEIGHT: 1024,

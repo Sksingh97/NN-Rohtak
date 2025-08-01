@@ -108,5 +108,8 @@ export interface TaskGroupDisplayItem {
 export type RootStackParamList = {
   Login: undefined;
   SiteList: undefined;
-  SiteDetail: { site: Site };
+  SiteDetail: { 
+    site: Site; 
+    sourceTab?: number; // 0 = My Sites, 1 = All Sites (for supervisors)
+  };
 };

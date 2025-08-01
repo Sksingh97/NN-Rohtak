@@ -93,7 +93,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   
   const dispatch = useDispatch<AppDispatch>();
   
-  const { site } = route.params;
+  const { site, sourceTab } = route.params;
   const { user } = useSelector((state: RootState) => state.auth);
   const { 
     attendanceRecords,
@@ -108,6 +108,22 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     isSubmittingTask = false
   } = useSelector((state: RootState) => state.attendance);
 
+  // Determine if attendance should be disabled
+  // Business Rule: Disable attendance for supervisors coming from "All Sites" tab (sourceTab === 1)
+  // Rationale: Supervisors only have temporary access to sites in "All Sites" for task submission 
+  // on behalf of others, but cannot mark their own attendance at sites they don't directly manage.
+  // They can only mark attendance at sites from "My Sites" tab (sourceTab === 0 or undefined).
+  const isAttendanceDisabled = user?.role === 2 && sourceTab === 1;
+  
+  // 📝 LOG ATTENDANCE ACCESS CONTROL
+  console.warn('🔐 ATTENDANCE ACCESS CONTROL:', JSON.stringify({
+    userRole: user?.role,
+    sourceTab,
+    isAttendanceDisabled,
+    siteName: site.name,
+    timestamp: new Date().toISOString(),
+  }, null, 2));
+  
   // Function to fetch attendance for specific date range
   const fetchAttendanceForTab = (tabIndex: number) => {
     if (tabIndex === 0) {
@@ -649,7 +665,11 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
             title={STRINGS.MARK_ATTENDANCE}
             onPress={showAttendanceImagePicker}
             loading={isMarkingAttendance}
-            style={styles.halfWidthButton}
+            style={StyleSheet.flatten([
+              styles.halfWidthButton,
+              isAttendanceDisabled && styles.disabledButton
+            ])}
+            disabled={isAttendanceDisabled} // Disable button if attendance is disabled
           />
           
           <Button
@@ -659,6 +679,15 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
             style={styles.taskReportButtonRight}
           />
         </View>
+
+        {/* Show info message when attendance is disabled */}
+        {isAttendanceDisabled && (
+          <View style={styles.infoContainer}>
+            <Text style={styles.infoText}>
+              💡 Attendance marking is not available when viewing sites from "All Sites" tab. Only task reports can be submitted for sites you don't directly manage.
+            </Text>
+          </View>
+        )}
 
         {/* Tabs */}
         <View style={styles.tabContainer}>
@@ -894,6 +923,25 @@ const styles = StyleSheet.create({
   taskReportButtonRight: {
     flex: 1,
     backgroundColor: COLORS.SECONDARY || '#FF6B35',
+  },
+  disabledButton: {
+    backgroundColor: COLORS.GRAY_LIGHT,
+    opacity: 0.6,
+  },
+  infoContainer: {
+    marginHorizontal: SIZES.MARGIN_MEDIUM,
+    marginBottom: SIZES.MARGIN_MEDIUM,
+    paddingHorizontal: SIZES.PADDING_MEDIUM,
+    paddingVertical: SIZES.PADDING_SMALL,
+    backgroundColor: '#E3F2FD',
+    borderRadius: SIZES.BORDER_RADIUS_SMALL,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.PRIMARY,
+  },
+  infoText: {
+    fontSize: SIZES.FONT_SIZE_SMALL,
+    color: COLORS.TEXT_SECONDARY,
+    lineHeight: 18,
   },
   multiImageIndicator: {
     position: 'absolute',

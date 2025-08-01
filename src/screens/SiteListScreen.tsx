@@ -96,7 +96,10 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
   const renderSiteItem = ({ item }: { item: Site }) => (
     <TouchableOpacity
       style={styles.siteCard}
-      onPress={() => navigation.navigate('SiteDetail', { site: item })}
+      onPress={() => navigation.navigate('SiteDetail', { 
+        site: item,
+        sourceTab: activeTab // Pass the current tab (0 = My Sites, 1 = All Sites)
+      })}
       activeOpacity={0.8}>
       <Image 
         source={require('../assets/siteIcon.png')} 
