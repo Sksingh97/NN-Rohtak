@@ -16,7 +16,7 @@ export const showErrorToast = (message: string, title?: string) => {
   Toast.show({
     type: 'error',
     text1: title || 'Error',
-    text2: message,
+    text2: message || 'An error occurred',
     position: 'top',
     visibilityTime: 4000,
     autoHide: true,

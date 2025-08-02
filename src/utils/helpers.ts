@@ -71,7 +71,7 @@ export const formatDate = (dateString: string): string => {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-    timeZone: 'UTC', // Show UTC date as received from server
+    timeZone: 'Asia/Kolkata', // Show UTC date as received from server
   });
 };
 
@@ -81,7 +81,7 @@ export const formatTime = (dateString: string): string => {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'UTC', // Show UTC time as received from server
+    timeZone: 'Asia/Kolkata', // Show IST time as received from server
   });
 };
 
@@ -94,7 +94,7 @@ export const formatDateTime = (dateString: string): string => {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'UTC', // Show UTC time as received from server
+    timeZone: 'Asia/Kolkata', // Show IST time as received from server
   });
 };
 

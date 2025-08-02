@@ -19,7 +19,20 @@ export const loginUser = createAsyncThunk(
       const loginResponse = await apiService.login(mobile, password);
       
       if (!loginResponse.success || !loginResponse.data) {
-        return rejectWithValue(loginResponse.error || STRINGS.LOGIN_ERROR);
+        // Extract meaningful error message from server response
+        let errorMessage = STRINGS.LOGIN_ERROR;
+        
+        if (loginResponse.error) {
+          if (typeof loginResponse.error === 'string') {
+            errorMessage = loginResponse.error;
+          } else if (typeof loginResponse.error === 'object' && loginResponse.error !== null) {
+            // Handle server error objects (e.g., {detail: "Invalid credentials"})
+            const errorObj = loginResponse.error as any;
+            errorMessage = errorObj.detail || errorObj.message || errorObj.error || STRINGS.LOGIN_ERROR;
+          }
+        }
+        
+        return rejectWithValue(errorMessage);
       }
 
       // Check if role exists
@@ -75,7 +88,16 @@ export const loginUser = createAsyncThunk(
       
       return user;
     } catch (error: any) {
-      return rejectWithValue(error.message || STRINGS.LOGIN_ERROR);
+      // Handle network errors, exceptions, etc.
+      let errorMessage = STRINGS.LOGIN_ERROR;
+      
+      if (error && typeof error === 'object') {
+        errorMessage = error.message || error.toString() || STRINGS.LOGIN_ERROR;
+      } else if (error && typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      return rejectWithValue(errorMessage);
     }
   }
 );
