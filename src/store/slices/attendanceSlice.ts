@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { AttendanceState, AttendanceRecord, TaskImageRecord, GroupedTaskImages } from '../../types';
+import { AttendanceState, AttendanceRecord, TaskImageRecord, GroupedTaskImages, GroupedAttendanceRecords } from '../../types';
 import { apiService } from '../../services/apiService';
 
 // Helper function to group task images by date
@@ -37,6 +37,45 @@ const groupTaskImagesByDate = (taskImages: TaskImageRecord[]): GroupedTaskImages
   return grouped;
 };
 
+// Helper function to group attendance records by date
+const groupAttendanceRecordsByDate = (attendanceRecords: AttendanceRecord[]): GroupedAttendanceRecords => {
+  const grouped: GroupedAttendanceRecords = {};
+  
+  attendanceRecords.forEach(record => {
+    // Extract date from check_in_time or timestamp (YYYY-MM-DD format)
+    const timestampToUse = record.check_in_time || record.timestamp;
+    const date = timestampToUse ? timestampToUse.split('T')[0] : new Date().toISOString().split('T')[0];
+    
+    if (!grouped[date]) {
+      grouped[date] = [];
+    }
+    
+    grouped[date].push(record);
+  });
+  
+  // Sort records within each date by timestamp (newest first), creating new arrays
+  Object.keys(grouped).forEach(date => {
+    grouped[date] = [...grouped[date]].sort((a, b) => {
+      const aTime = a.check_in_time || a.timestamp;
+      const bTime = b.check_in_time || b.timestamp;
+      
+      const aDate = aTime ? new Date(aTime) : new Date(0);
+      const bDate = bTime ? new Date(bTime) : new Date(0);
+      
+      const aValid = !isNaN(aDate.getTime());
+      const bValid = !isNaN(bDate.getTime());
+      
+      if (!aValid && !bValid) return 0;
+      if (!aValid) return 1;
+      if (!bValid) return -1;
+      
+      return bDate.getTime() - aDate.getTime();
+    });
+  });
+  
+  return grouped;
+};
+
 const initialState: AttendanceState = {
   todayAttendance: [],
   monthAttendance: [],
@@ -45,6 +84,7 @@ const initialState: AttendanceState = {
   attendanceRecords: [], // Add new field for site-based attendance
   taskImages: [], // New field for task images
   groupedTaskImages: {}, // Grouped by date
+  groupedAttendanceRecords: {}, // Grouped by date
   isLoading: false,
   error: null,
   isMarkingAttendance: false,
@@ -337,6 +377,7 @@ const attendanceSlice = createSlice({
       .addCase(fetchAttendanceBySite.fulfilled, (state, action: PayloadAction<AttendanceRecord[]>) => {
         state.isLoading = false;
         state.attendanceRecords = action.payload;
+        state.groupedAttendanceRecords = groupAttendanceRecordsByDate(action.payload);
         state.error = null;
       })
       .addCase(fetchAttendanceBySite.rejected, (state, action) => {

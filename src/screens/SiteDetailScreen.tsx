@@ -28,7 +28,7 @@ import { launchCamera, launchImageLibrary, ImagePickerResponse, MediaType } from
 import Geolocation from 'react-native-geolocation-service';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { RootState, AppDispatch } from '../store';
-import { AttendanceRecord, TaskImageRecord, GroupedTaskImages, TaskGroupDisplayItem } from '../types';
+import { AttendanceRecord, TaskImageRecord, GroupedTaskImages, TaskGroupDisplayItem, GroupedAttendanceRecords, AttendanceGroupDisplayItem } from '../types';
 import {
   fetchTodayAttendance,
   fetchMonthAttendance,
@@ -104,6 +104,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     attendanceRecords,
     taskImages,
     groupedTaskImages,
+    groupedAttendanceRecords,
     todayAttendance, 
     monthAttendance, 
     todayTasks = [], 
@@ -562,6 +563,74 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     );
   };
 
+  const renderAttendanceGroupItem = ({ item }: { item: AttendanceGroupDisplayItem }) => {
+    const allImageUrls = item.records.map(record => record.image_url);
+    
+    return (
+      <View style={styles.attendanceItem}>
+        <TouchableOpacity onPress={() => openPhotoPreview(item.displayRecord.image_url, allImageUrls)}>
+          <Image source={{ uri: item.displayRecord.image_url }} style={styles.attendanceImage} />
+          {item.recordCount > 1 && (
+            <View style={styles.imageCountBadge}>
+              <Text style={styles.imageCountText}>{item.recordCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <Text style={styles.attendanceTime}>
+          {formatDateTime(item.timestamp)}
+        </Text>
+        <Text style={styles.recordType}>
+          Attendance
+        </Text>
+      </View>
+    );
+  };
+
+  // Convert grouped attendance records to display items for grid
+  const getAttendanceGroupDisplayItems = (): AttendanceGroupDisplayItem[] => {
+    return Object.keys(groupedAttendanceRecords).map(date => {
+      const records = groupedAttendanceRecords[date];
+      // Create a new array and sort with timestamp validation
+      const sortedRecords = [...records].sort((a, b) => {
+        const aTime = a.check_in_time || a.timestamp;
+        const bTime = b.check_in_time || b.timestamp;
+        
+        const aDate = aTime ? new Date(aTime) : new Date(0);
+        const bDate = bTime ? new Date(bTime) : new Date(0);
+        
+        const aValid = !isNaN(aDate.getTime());
+        const bValid = !isNaN(bDate.getTime());
+        
+        if (!aValid && !bValid) return 0;
+        if (!aValid) return 1;
+        if (!bValid) return -1;
+        
+        return bDate.getTime() - aDate.getTime();
+      });
+      
+      return {
+        id: `attendance-group-${date}`,
+        date,
+        records: sortedRecords,
+        displayRecord: sortedRecords[0], // Use latest record
+        recordCount: sortedRecords.length,
+        timestamp: sortedRecords[0]?.check_in_time || sortedRecords[0]?.timestamp || date, // Use latest timestamp or fallback to date
+      };
+    }).sort((a, b) => {
+      const aDate = a.timestamp ? new Date(a.timestamp) : new Date(0);
+      const bDate = b.timestamp ? new Date(b.timestamp) : new Date(0);
+      
+      const aValid = !isNaN(aDate.getTime());
+      const bValid = !isNaN(bDate.getTime());
+      
+      if (!aValid && !bValid) return 0;
+      if (!aValid) return 1;
+      if (!bValid) return -1;
+      
+      return bDate.getTime() - aDate.getTime();
+    });
+  };
+
   // Convert grouped task images to display items for grid
   const getTaskGroupDisplayItems = (): TaskGroupDisplayItem[] => {
     return Object.keys(groupedTaskImages).map(date => {
@@ -627,23 +696,50 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     );
   };
 
-  // Use attendance records from API (already filtered by date) and combine with task groups
+  // Use grouped attendance records and task groups for unified display
   const taskGroupDisplayItems = getTaskGroupDisplayItems();
-  const currentAttendance = activeTab === 0 
-    ? [...attendanceRecords, ...todayTasks]
-    : [...attendanceRecords, ...monthTasks];
+  const attendanceGroupDisplayItems = getAttendanceGroupDisplayItems();
+  
+  // For backward compatibility, still include legacy today/month tasks if they exist
+  const legacyTasks = activeTab === 0 ? todayTasks : monthTasks;
 
-  // Combine attendance records and task groups for unified display
+  // Combine grouped attendance records, task groups, and legacy tasks for unified display
   const allRecords = [
-    ...currentAttendance,
-    ...taskGroupDisplayItems
+    ...attendanceGroupDisplayItems,
+    ...taskGroupDisplayItems,
+    ...legacyTasks // Include any legacy tasks that might not be grouped yet
   ];
 
-  // Sort by timestamp (newest first) - use check_in_time for attendance, timestamp for task groups
+  // Sort by timestamp (newest first) - handle different record types
   // Create a new array to avoid mutating read-only Redux state
   const sortedRecords = [...allRecords].sort((a, b) => {
-    const aTime = 'check_in_time' in a ? (a.check_in_time || a.timestamp) : a.timestamp;
-    const bTime = 'check_in_time' in b ? (b.check_in_time || b.timestamp) : b.timestamp;
+    let aTime: string;
+    let bTime: string;
+    
+    // Determine timestamp based on record type
+    if ('records' in a) {
+      // AttendanceGroupDisplayItem
+      aTime = a.timestamp;
+    } else if ('images' in a) {
+      // TaskGroupDisplayItem
+      aTime = a.timestamp;
+    } else {
+      // Legacy AttendanceRecord
+      const legacyRecord = a as AttendanceRecord;
+      aTime = legacyRecord.check_in_time || legacyRecord.timestamp;
+    }
+    
+    if ('records' in b) {
+      // AttendanceGroupDisplayItem
+      bTime = b.timestamp;
+    } else if ('images' in b) {
+      // TaskGroupDisplayItem
+      bTime = b.timestamp;
+    } else {
+      // Legacy AttendanceRecord
+      const legacyRecord = b as AttendanceRecord;
+      bTime = legacyRecord.check_in_time || legacyRecord.timestamp;
+    }
     
     // Handle cases where timestamps might be missing or invalid
     const aDate = aTime ? new Date(aTime) : new Date(0);
@@ -660,11 +756,17 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     return bDate.getTime() - aDate.getTime();
   });
 
-  const renderRecord = ({ item }: { item: AttendanceRecord | TaskGroupDisplayItem }) => {
+  const renderRecord = ({ item }: { item: AttendanceRecord | TaskGroupDisplayItem | AttendanceGroupDisplayItem }) => {
+    // Check if it's an attendance group item
+    if ('records' in item) {
+      return renderAttendanceGroupItem({ item });
+    }
     // Check if it's a task group item
-    if ('images' in item) {
+    else if ('images' in item) {
       return renderTaskGroupItem({ item });
-    } else {
+    } 
+    // Legacy attendance record
+    else {
       return renderAttendanceItem({ item });
     }
   };
