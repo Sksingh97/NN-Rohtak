@@ -63,6 +63,12 @@ export interface SiteState {
   searchQuery: string;
 }
 
+export interface PaginationState {
+  currentPage: number;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+}
+
 export interface AttendanceState {
   todayAttendance: AttendanceRecord[];
   monthAttendance: AttendanceRecord[];
@@ -72,6 +78,9 @@ export interface AttendanceState {
   taskImages: TaskImageRecord[]; // New field for task images
   groupedTaskImages: GroupedTaskImages; // Grouped by date
   groupedAttendanceRecords: GroupedAttendanceRecords; // Grouped by date
+  // Pagination states for monthly data
+  thisMonthPagination: PaginationState;
+  lastMonthPagination: PaginationState;
   isLoading: boolean;
   isMarkingAttendance: boolean;
   isSubmittingTask: boolean;

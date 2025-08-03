@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  FlatList,
   Alert,
   Platform,
   Dimensions,
@@ -36,8 +35,12 @@ import {
   fetchMonthTasks,
   fetchAttendanceBySite,
   fetchTaskImagesBySite,
+  fetchTodayDataBySite,
+  fetchPaginatedMonthDataBySite,
   markAttendance,
   submitTaskReport,
+  resetPaginationState,
+  updateHasMore,
 } from '../store/slices/attendanceSlice';
 import { withLoader } from '../components/Loader';
 import Button from '../components/Button';
@@ -46,6 +49,14 @@ import MultiImageLocationSubmissionModal from '../components/MultiImageLocationS
 import ImagePickerModal from '../components/ImagePickerModal';
 import { ATTENDANCE_SHOW_SELECT_FROM_GALLERY } from '../constants/attendanceConfig';
 import { requestCameraPermission, requestLocationPermission, formatDateTime, formatDateForGrouping, getCurrentMonthRange, getLastMonthRange } from '../utils/helpers';
+import { 
+  getTodayRange, 
+  getCurrentMonthInfo, 
+  getLastMonthInfo, 
+  getPaginatedMonthRange, 
+  hasMorePages,
+  getNextPage 
+} from '../utils/datePagination';
 import { compressImage, compressMultipleImages } from '../utils/imageUtils';
 import { getAttendanceCompressionOptions, getTaskReportCompressionOptions } from '../constants/imageCompression';
 import { showSuccessToast, showErrorToast } from '../utils/toast';
@@ -61,10 +72,10 @@ interface SiteDetailScreenProps {
 }
 
 const { width } = Dimensions.get('window');
-const imageSize = (width - 48) / 3;
+const imageSize = (width - 80) / 3; // Increased spacing for better grid layout
 
 const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }) => {
-  const [activeTab, setActiveTab] = useState(0); // 0 for This Month, 1 for Last Month
+  const [activeTab, setActiveTab] = useState(0); // 0 for Today's, 1 for This Month, 2 for Last Month
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
@@ -109,6 +120,8 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     monthAttendance, 
     todayTasks = [], 
     monthTasks = [],
+    thisMonthPagination,
+    lastMonthPagination,
     isLoading,
     isMarkingAttendance,
     isSubmittingTask = false
@@ -130,31 +143,77 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     timestamp: new Date().toISOString(),
   }, null, 2));
   
-  // Function to fetch attendance for specific date range
-  const fetchAttendanceForTab = (tabIndex: number) => {
+  // Function to fetch attendance for specific tab
+  const fetchAttendanceForTab = (tabIndex: number, loadMore: boolean = false) => {
     if (tabIndex === 0) {
-      // This Month
-      const { startDate, endDate } = getCurrentMonthRange();
-      console.log('Fetching This Month attendance:', { startDate, endDate });
-      dispatch(fetchAttendanceBySite({ siteId: site.id, startDate, endDate }));
-      dispatch(fetchTaskImagesBySite({ siteId: site.id, startDate, endDate }));
+      // Today's tab - single API call with today's date
+      console.log('Fetching Today\'s data');
+      dispatch(fetchTodayDataBySite({ siteId: site.id }));
+    } else if (tabIndex === 1) {
+      // This Month tab - paginated calls
+      const monthInfo = getCurrentMonthInfo();
+      const currentPage = loadMore ? thisMonthPagination.currentPage + 1 : 1;
+      
+      if (!loadMore) {
+        // Reset pagination state for fresh load
+        dispatch(resetPaginationState({ isThisMonth: true }));
+      }
+      
+      const paginatedRange = getPaginatedMonthRange(monthInfo, currentPage, 6, true);
+      console.log('Fetching This Month data:', { ...paginatedRange, currentPage, loadMore });
+      
+      dispatch(fetchPaginatedMonthDataBySite({ 
+        siteId: site.id, 
+        startDate: paginatedRange.startDate, 
+        endDate: paginatedRange.endDate,
+        page: currentPage,
+        isThisMonth: true,
+        append: loadMore
+      }));
+      
+      // Update hasMore flag
+      dispatch(updateHasMore({ 
+        isThisMonth: true, 
+        hasMore: paginatedRange.hasMore 
+      }));
     } else {
-      // Last Month
-      const { startDate, endDate } = getLastMonthRange();
-      console.log('Fetching Last Month attendance:', { startDate, endDate });
-      dispatch(fetchAttendanceBySite({ siteId: site.id, startDate, endDate }));
-      dispatch(fetchTaskImagesBySite({ siteId: site.id, startDate, endDate }));
+      // Last Month tab - paginated calls
+      const monthInfo = getLastMonthInfo();
+      const currentPage = loadMore ? lastMonthPagination.currentPage + 1 : 1;
+      
+      if (!loadMore) {
+        // Reset pagination state for fresh load
+        dispatch(resetPaginationState({ isThisMonth: false }));
+      }
+      
+      const paginatedRange = getPaginatedMonthRange(monthInfo, currentPage, 6, false);
+      console.log('Fetching Last Month data:', { ...paginatedRange, currentPage, loadMore });
+      
+      dispatch(fetchPaginatedMonthDataBySite({ 
+        siteId: site.id, 
+        startDate: paginatedRange.startDate, 
+        endDate: paginatedRange.endDate,
+        page: currentPage,
+        isThisMonth: false,
+        append: loadMore
+      }));
+      
+      // Update hasMore flag
+      dispatch(updateHasMore({ 
+        isThisMonth: false, 
+        hasMore: paginatedRange.hasMore 
+      }));
     }
   };
 
   useEffect(() => {
-    // Fetch attendance records for the current tab (default to current month)
+    // Fetch attendance records for the current tab (default to Today's - tab 0)
     fetchAttendanceForTab(activeTab);
     
     // Keep existing user-based fetching for tasks if needed
     if (user?.id) {
-      // dispatch(fetchTodayTasks(user.id)); // This Month tasks
-      // dispatch(fetchMonthTasks(user.id)); // Last Month tasks
+      // dispatch(fetchTodayTasks(user.id)); // Today's tasks
+      // dispatch(fetchMonthTasks(user.id)); // Month tasks
     }
   }, [dispatch, site.id, user?.id]);
 
@@ -771,13 +830,38 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     }
   };
 
+  // Function to handle scroll events for pagination
+  const handleScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const scrollPercentage = (contentOffset.y + layoutMeasurement.height) / contentSize.height;
+    
+    // Load more when user scrolls to 70% of the content
+    if (scrollPercentage >= 0.7) {
+      if (activeTab === 1) {
+        // This Month tab
+        if (thisMonthPagination.hasMore && !thisMonthPagination.isLoadingMore) {
+          console.log('Loading more This Month data at 70% scroll');
+          fetchAttendanceForTab(1, true);
+        }
+      } else if (activeTab === 2) {
+        // Last Month tab
+        if (lastMonthPagination.hasMore && !lastMonthPagination.isLoadingMore) {
+          console.log('Loading more Last Month data at 70% scroll');
+          fetchAttendanceForTab(2, true);
+        }
+      }
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <ScrollView 
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
         contentInsetAdjustmentBehavior="never"
-        automaticallyAdjustContentInsets={false}>
+        automaticallyAdjustContentInsets={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={400}>
         {/* Site Info */}
         <View style={styles.siteInfoCard}>
           <View style={styles.siteHeader}>
@@ -848,7 +932,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
               fetchAttendanceForTab(0);
             }}>
             <Text style={[styles.tabText, activeTab === 0 && styles.activeTabText]}>
-              This Month
+              Today's
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -858,6 +942,16 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
               fetchAttendanceForTab(1);
             }}>
             <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
+              This Month
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 2 && styles.activeTab]}
+            onPress={() => {
+              setActiveTab(2);
+              fetchAttendanceForTab(2);
+            }}>
+            <Text style={[styles.tabText, activeTab === 2 && styles.activeTabText]}>
               Last Month
             </Text>
           </TouchableOpacity>
@@ -866,21 +960,39 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         {/* Records List - Combined Attendance and Task Images */}
         <View style={styles.attendanceContainer}>
           {sortedRecords.length > 0 ? (
-            <FlatList
-              data={sortedRecords as any[]} // Cast to any[] to handle union type
-              renderItem={renderRecord}
-              keyExtractor={(item) => ('images' in item ? item.id : `attendance-${item.id}`)}
-              numColumns={3}
-              scrollEnabled={false}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-              columnWrapperStyle={styles.row}
-            />
+            <View>
+              {/* Render records in a grid manually to avoid VirtualizedList nesting issues */}
+              {Array.from({ length: Math.ceil(sortedRecords.length / 3) }, (_, rowIndex) => {
+                const rowItems = sortedRecords.slice(rowIndex * 3, (rowIndex + 1) * 3);
+                return (
+                  <View key={`row-${rowIndex}`} style={styles.row}>
+                    {rowItems.map((item, columnIndex) => (
+                      <View key={`col-${rowIndex}-${columnIndex}`} style={styles.gridItemContainer}>
+                        {renderRecord({ item })}
+                      </View>
+                    ))}
+                    {/* Fill empty spaces if row has less than 3 items */}
+                    {Array.from({ length: 3 - rowItems.length }, (_, emptyIndex) => (
+                      <View key={`empty-${rowIndex}-${emptyIndex}`} style={styles.gridItemContainer} />
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
           ) : (
             <View style={styles.emptyContainer}>
               <CameraIcon size={64} color={COLORS.GRAY_MEDIUM} />
               <Text style={styles.emptyText}>
-                No records for {activeTab === 0 ? 'this month' : 'last month'}
+                No records for {activeTab === 0 ? 'today' : activeTab === 1 ? 'this month' : 'last month'}
               </Text>
+            </View>
+          )}
+          
+          {/* Loading more indicator for pagination */}
+          {((activeTab === 1 && thisMonthPagination.isLoadingMore) || 
+            (activeTab === 2 && lastMonthPagination.isLoadingMore)) && (
+            <View style={styles.loadingMoreContainer}>
+              <Text style={styles.loadingMoreText}>Loading more...</Text>
             </View>
           )}
         </View>
@@ -1178,13 +1290,24 @@ const styles = StyleSheet.create({
   },
   attendanceContainer: {
     paddingHorizontal: SIZES.PADDING_MEDIUM,
-    paddingBottom: SIZES.PADDING_LARGE,
+    paddingVertical: SIZES.PADDING_MEDIUM,
+    flex: 1,
+    minHeight: 400, // Ensure minimum height for scrolling
   },
   row: {
-    justifyContent: 'space-between',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: SIZES.MARGIN_MEDIUM,
+    paddingHorizontal: SIZES.PADDING_SMALL,
+  },
+  gridItemContainer: {
+    width: imageSize,
+    alignItems: 'center',
+    marginHorizontal: SIZES.MARGIN_SMALL / 2,
   },
   attendanceItem: {
     width: imageSize,
+    alignItems: 'center',
     marginBottom: SIZES.MARGIN_MEDIUM,
   },
   attendanceImage: {
@@ -1192,12 +1315,14 @@ const styles = StyleSheet.create({
     height: imageSize,
     borderRadius: SIZES.BORDER_RADIUS_MEDIUM,
     backgroundColor: COLORS.GRAY_LIGHT,
+    marginBottom: SIZES.MARGIN_SMALL,
   },
   attendanceTime: {
     fontSize: SIZES.FONT_SIZE_SMALL,
     color: COLORS.TEXT_SECONDARY,
     textAlign: 'center',
-    marginTop: SIZES.MARGIN_SMALL,
+    marginTop: SIZES.MARGIN_SMALL / 2,
+    width: imageSize, // Ensure text width matches image width
   },
   separator: {
     height: SIZES.MARGIN_MEDIUM,
@@ -1392,6 +1517,16 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_PRIMARY,
     marginBottom: SIZES.MARGIN_MEDIUM,
     paddingHorizontal: SIZES.PADDING_MEDIUM,
+  },
+  loadingMoreContainer: {
+    paddingVertical: SIZES.PADDING_MEDIUM,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingMoreText: {
+    fontSize: SIZES.FONT_SIZE_SMALL,
+    color: COLORS.TEXT_SECONDARY,
+    fontStyle: 'italic',
   },
 });
 

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, API_ENDPOINTS } from '../constants/api';
 import { AttendanceRecord, TaskImageRecord } from '../types';
+import { showErrorToast } from '../utils/toast';
 
 // Storage keys
 export const STORAGE_KEYS = {
@@ -43,10 +44,35 @@ export interface RequestConfig {
 class ApiService {
   private baseURL: string;
   private timeout: number;
+  private onUnauthorized?: () => void;
 
   constructor() {
     this.baseURL = API_CONFIG.BASE_URL;
     this.timeout = API_CONFIG.TIMEOUT;
+  }
+
+  // Set callback function to handle 401/403 unauthorized/forbidden responses
+  public setUnauthorizedHandler(callback: () => void): void {
+    this.onUnauthorized = callback;
+  }
+
+  // Handle 401/403 unauthorized/forbidden response
+  private async handleUnauthorized(): Promise<void> {
+    console.warn('🚨 UNAUTHORIZED/FORBIDDEN ACCESS - LOGGING OUT USER:', {
+      timestamp: new Date().toISOString(),
+    });
+
+    try {
+      // Clear stored auth data
+      await this.clearAuthData();
+      
+      // Call the callback to redirect to login screen
+      if (this.onUnauthorized) {
+        this.onUnauthorized();
+      }
+    } catch (error) {
+      console.error('💥 ERROR HANDLING UNAUTHORIZED:', error);
+    }
   }
 
   // Get stored access token
@@ -242,6 +268,27 @@ class ApiService {
             fullResponse: responseData,
             timestamp: new Date().toISOString(),
           }, null, 2));
+        }
+
+        // Handle 401 Unauthorized or 403 Forbidden - logout user and redirect to login
+        if (response.status === 401 || response.status === 403) {
+          console.warn('🚨 401/403 UNAUTHORIZED/FORBIDDEN RESPONSE - INITIATING LOGOUT');
+          
+          // Show toast notification
+          showErrorToast(
+            'Your session has expired or access is forbidden. You will be logged out.',
+            'Authentication Error'
+          );
+          
+          // Don't await this to avoid blocking the response
+          this.handleUnauthorized().catch(error => {
+            console.error('Error handling unauthorized/forbidden:', error);
+          });
+          
+          return {
+            error: responseData?.message || responseData,
+            success: false,
+          };
         }
 
         if (!response.ok) {
@@ -514,6 +561,26 @@ class ApiService {
           }, null, 2));
         }
 
+        // Handle 401 Unauthorized or 403 Forbidden in attendance marking
+        if (response.status === 401 || response.status === 403) {
+          console.warn('🚨 401/403 UNAUTHORIZED/FORBIDDEN IN MARK ATTENDANCE - INITIATING LOGOUT');
+          
+          // Show toast notification
+          showErrorToast(
+            'Your session has expired or access is forbidden. You will be logged out.',
+            'Authentication Error'
+          );
+          
+          this.handleUnauthorized().catch(error => {
+            console.error('Error handling unauthorized/forbidden in mark attendance:', error);
+          });
+          
+          return {
+            error: 'Session expired or access forbidden. Please login again.',
+            success: false,
+          };
+        }
+
         if (!response.ok) {
           return {
             error: responseData?.message || responseData || `HTTP ${response.status}: ${response.statusText}`,
@@ -761,6 +828,23 @@ class ApiService {
             fullResponse: responseData,
             timestamp: new Date().toISOString(),
           }, null, 2));
+        }
+
+        // Handle 401 Unauthorized or 403 Forbidden in photo upload
+        if (response.status === 401 || response.status === 403) {
+          console.warn('🚨 401/403 UNAUTHORIZED/FORBIDDEN IN PHOTO UPLOAD - INITIATING LOGOUT');
+          
+          // Show toast notification
+          showErrorToast(
+            'Your session has expired or access is forbidden. You will be logged out.',
+            'Authentication Error'
+          );
+          
+          await this.handleUnauthorized();
+          return {
+            error: 'Session expired or access forbidden. Please login again.',
+            success: false,
+          };
         }
 
         if (!response.ok) {

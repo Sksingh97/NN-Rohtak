@@ -85,6 +85,17 @@ const initialState: AttendanceState = {
   taskImages: [], // New field for task images
   groupedTaskImages: {}, // Grouped by date
   groupedAttendanceRecords: {}, // Grouped by date
+  // Pagination states
+  thisMonthPagination: {
+    currentPage: 0,
+    hasMore: true,
+    isLoadingMore: false,
+  },
+  lastMonthPagination: {
+    currentPage: 0,
+    hasMore: true,
+    isLoadingMore: false,
+  },
   isLoading: false,
   error: null,
   isMarkingAttendance: false,
@@ -271,12 +282,115 @@ export const markAttendance = createAsyncThunk(
   }
 );
 
+// New thunk for fetching today's data by site
+export const fetchTodayDataBySite = createAsyncThunk(
+  'attendance/fetchTodayDataBySite',
+  async ({ siteId }: { siteId: string }, { rejectWithValue }) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Fetch both attendance and task images for today
+      const [attendanceResponse, taskImagesResponse] = await Promise.all([
+        apiService.getAttendance(siteId, today, today),
+        apiService.getTaskImages(siteId, today, today)
+      ]);
+      
+      const attendanceData = attendanceResponse.success && attendanceResponse.data ? 
+        attendanceResponse.data.map(record => ({
+          ...record,
+          timestamp: record.check_in_time,
+          description: record.notes,
+        })) : [];
+      
+      const taskImagesData = taskImagesResponse.success && taskImagesResponse.data ? 
+        taskImagesResponse.data : [];
+      
+      return {
+        attendanceRecords: attendanceData,
+        taskImages: taskImagesData
+      };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch today\'s data');
+    }
+  }
+);
+
+// New thunk for fetching paginated month data by site
+export const fetchPaginatedMonthDataBySite = createAsyncThunk(
+  'attendance/fetchPaginatedMonthDataBySite',
+  async ({ 
+    siteId, 
+    startDate, 
+    endDate, 
+    page, 
+    isThisMonth, 
+    append = false 
+  }: { 
+    siteId: string; 
+    startDate: string; 
+    endDate: string; 
+    page: number; 
+    isThisMonth: boolean;
+    append?: boolean;
+  }, { rejectWithValue }) => {
+    try {
+      // Fetch both attendance and task images for the date range
+      const [attendanceResponse, taskImagesResponse] = await Promise.all([
+        apiService.getAttendance(siteId, startDate, endDate),
+        apiService.getTaskImages(siteId, startDate, endDate)
+      ]);
+      
+      const attendanceData = attendanceResponse.success && attendanceResponse.data ? 
+        attendanceResponse.data.map(record => ({
+          ...record,
+          timestamp: record.check_in_time,
+          description: record.notes,
+        })) : [];
+      
+      const taskImagesData = taskImagesResponse.success && taskImagesResponse.data ? 
+        taskImagesResponse.data : [];
+      
+      return {
+        attendanceRecords: attendanceData,
+        taskImages: taskImagesData,
+        page,
+        isThisMonth,
+        append
+      };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch paginated month data');
+    }
+  }
+);
+
 const attendanceSlice = createSlice({
   name: 'attendance',
   initialState,
   reducers: {
     clearAttendanceError: (state) => {
       state.error = null;
+    },
+    resetPaginationState: (state, action: PayloadAction<{ isThisMonth: boolean }>) => {
+      if (action.payload.isThisMonth) {
+        state.thisMonthPagination = {
+          currentPage: 0,
+          hasMore: true,
+          isLoadingMore: false,
+        };
+      } else {
+        state.lastMonthPagination = {
+          currentPage: 0,
+          hasMore: true,
+          isLoadingMore: false,
+        };
+      }
+    },
+    updateHasMore: (state, action: PayloadAction<{ isThisMonth: boolean; hasMore: boolean }>) => {
+      if (action.payload.isThisMonth) {
+        state.thisMonthPagination.hasMore = action.payload.hasMore;
+      } else {
+        state.lastMonthPagination.hasMore = action.payload.hasMore;
+      }
     },
   },
   extraReducers: (builder) => {
@@ -398,9 +512,78 @@ const attendanceSlice = createSlice({
       .addCase(fetchTaskImagesBySite.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
+      })
+      // Handle fetchTodayDataBySite
+      .addCase(fetchTodayDataBySite.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchTodayDataBySite.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.attendanceRecords = action.payload.attendanceRecords;
+        state.taskImages = action.payload.taskImages;
+        state.groupedAttendanceRecords = groupAttendanceRecordsByDate(action.payload.attendanceRecords);
+        state.groupedTaskImages = groupTaskImagesByDate(action.payload.taskImages);
+        state.error = null;
+      })
+      .addCase(fetchTodayDataBySite.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      // Handle fetchPaginatedMonthDataBySite
+      .addCase(fetchPaginatedMonthDataBySite.pending, (state, action) => {
+        const { isThisMonth, append } = action.meta.arg;
+        if (!append) {
+          state.isLoading = true;
+        }
+        if (isThisMonth) {
+          state.thisMonthPagination.isLoadingMore = true;
+        } else {
+          state.lastMonthPagination.isLoadingMore = true;
+        }
+        state.error = null;
+      })
+      .addCase(fetchPaginatedMonthDataBySite.fulfilled, (state, action) => {
+        const { attendanceRecords, taskImages, page, isThisMonth, append } = action.payload;
+        
+        if (append) {
+          // Append new data to existing data
+          state.attendanceRecords = [...state.attendanceRecords, ...attendanceRecords];
+          state.taskImages = [...state.taskImages, ...taskImages];
+        } else {
+          // Replace existing data (first load)
+          state.attendanceRecords = attendanceRecords;
+          state.taskImages = taskImages;
+          state.isLoading = false;
+        }
+        
+        // Update pagination state
+        if (isThisMonth) {
+          state.thisMonthPagination.currentPage = page;
+          state.thisMonthPagination.isLoadingMore = false;
+          // hasMore will be updated by the component based on data size
+        } else {
+          state.lastMonthPagination.currentPage = page;
+          state.lastMonthPagination.isLoadingMore = false;
+        }
+        
+        // Regroup data
+        state.groupedAttendanceRecords = groupAttendanceRecordsByDate(state.attendanceRecords);
+        state.groupedTaskImages = groupTaskImagesByDate(state.taskImages);
+        state.error = null;
+      })
+      .addCase(fetchPaginatedMonthDataBySite.rejected, (state, action) => {
+        const { isThisMonth } = action.meta.arg;
+        state.isLoading = false;
+        if (isThisMonth) {
+          state.thisMonthPagination.isLoadingMore = false;
+        } else {
+          state.lastMonthPagination.isLoadingMore = false;
+        }
+        state.error = action.payload as string;
       });
   },
 });
 
-export const { clearAttendanceError } = attendanceSlice.actions;
+export const { clearAttendanceError, resetPaginationState, updateHasMore } = attendanceSlice.actions;
 export default attendanceSlice.reducer;
