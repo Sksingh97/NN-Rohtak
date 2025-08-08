@@ -18,6 +18,23 @@ export interface Site {
   location_wkt: string | null;
 }
 
+// Sweeper/Worker interfaces
+export interface MySweeper {
+  user_id: string;
+  name: string;
+  sites: string[];
+}
+
+export interface AllSweeper {
+  id: string;
+  name: string;
+  mobile: string;
+  role: string;
+  sites: string[];
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface AttendanceRecord {
   id: string; // UUID from API
   user_id: string;

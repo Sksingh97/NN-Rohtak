@@ -1,4 +1,6 @@
-const BASE_URL = 'https://api.sbmrohtak.in/api';
+// const BASE_URL = 'https://api.sbmrohtak.in/api';
+
+const BASE_URL = 'https://endlessly-helpful-oarfish.ngrok-free.app/api';
 
 export const API_CONFIG = {
   BASE_URL,
@@ -43,6 +45,7 @@ export const API_ENDPOINTS = {
   USER: {
     PROFILE: '/user/profile',
     APP_ALLOWED_ROLES: '/users/app-allowed-roles',
+    MY_SITES_USERS: '/users/my-sites-users', // My Sweepers API and All Sweepers API with role=worker query param
   },
 };
 

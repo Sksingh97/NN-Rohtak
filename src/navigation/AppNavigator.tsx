@@ -5,13 +5,13 @@ import { useSelector } from 'react-redux';
 import { Site } from '../types';
 import { RootState } from '../store';
 import LoginScreen from '../screens/LoginScreen';
-import SiteListScreen from '../screens/SiteListScreen';
+import MainTabNavigator from './MainTabNavigator';
 import SiteDetailScreen from '../screens/SiteDetailScreen';
 import { COLORS } from '../constants/theme';
 
 export type RootStackParamList = {
   Login: undefined;
-  SiteList: undefined;
+  MainTabs: undefined;
   SiteDetail: { 
     site: Site; 
     sourceTab?: number; // 0 = My Sites, 1 = All Sites (for supervisors)
@@ -44,8 +44,8 @@ const AppNavigator: React.FC = () => {
         ) : (
           <>
             <Stack.Screen
-              name="SiteList"
-              component={SiteListScreen}
+              name="MainTabs"
+              component={MainTabNavigator}
               options={{ headerShown: false }}
             />
             <Stack.Screen

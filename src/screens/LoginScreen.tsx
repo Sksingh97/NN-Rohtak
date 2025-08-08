@@ -41,7 +41,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigation.replace('SiteList');
+      navigation.replace('MainTabs');
     }
   }, [isAuthenticated, navigation]);
 

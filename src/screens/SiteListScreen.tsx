@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,14 +12,12 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StackNavigationProp } from '@react-navigation/stack';
 import {
   ChevronRightIcon,
   MapPinIcon,
   ArrowRightOnRectangleIcon,
   MagnifyingGlassIcon,
 } from 'react-native-heroicons/outline';
-import { RootStackParamList } from '../navigation/AppNavigator';
 import { RootState, AppDispatch } from '../store';
 import { Site } from '../types';
 import {
@@ -27,19 +25,17 @@ import {
   fetchMySites,
   setSearchQuery,
 } from '../store/slices/siteSlice';
-import { logout, logoutUser } from '../store/slices/authSlice';
+import { logoutUser } from '../store/slices/authSlice';
 import { withLoader } from '../components/Loader';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS } from '../constants/strings';
 
-type SiteListScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SiteList'>;
-
 interface SiteListScreenProps {
-  navigation: SiteListScreenNavigationProp;
+  navigation: any;
+  showAll?: boolean; // Add optional showAll prop to control which sites to show
 }
 
-const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState(0); // 0 for My Sites, 1 for All Sites
+const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation, showAll = false }) => {
   const dispatch = useDispatch<AppDispatch>();
   
   const { user } = useSelector((state: RootState) => state.auth);
@@ -47,30 +43,25 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
     (state: RootState) => state.sites
   );
 
-  const showTabs = user?.role === 2;
-
   useEffect(() => {
-    if (showTabs && user) {
-      // Supervisor: Load both my sites and all sites
-      dispatch(fetchMySites());
-      dispatch(fetchAllSites());
-    } else if (user) {
-      // Worker: Load only my sites
-      dispatch(fetchMySites());
+    if (user) {
+      if (showAll) {
+        dispatch(fetchAllSites());
+      } else {
+        dispatch(fetchMySites());
+      }
     }
-  }, [dispatch, showTabs, user]);
+  }, [dispatch, showAll, user]);
 
-  const currentSites = useMemo(() => {
-    const sites = activeTab === 0 ? mySites : allSites;
+  const filteredSites = useMemo(() => {
+    const sites = showAll ? allSites : mySites;
     if (!searchQuery) return sites;
-    
-    return sites.filter((site: Site) =>
+
+    return sites.filter((site) =>
       site.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       site.address.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [activeTab, mySites, allSites, searchQuery]);
-
-  const handleLogout = () => {
+  }, [showAll, mySites, allSites, searchQuery]);  const handleLogout = () => {
     Alert.alert(
       STRINGS.LOGOUT,
       'Are you sure you want to logout?',
@@ -83,12 +74,12 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
 
   const handleRefresh = () => {
     if (user) {
-      if (activeTab === 0) {
-        // Refresh my sites
-        dispatch(fetchMySites());
-      } else {
+      if (showAll) {
         // Refresh all sites
         dispatch(fetchAllSites());
+      } else {
+        // Refresh my sites
+        dispatch(fetchMySites());
       }
     }
   };
@@ -98,7 +89,7 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
       style={styles.siteCard}
       onPress={() => navigation.navigate('SiteDetail', { 
         site: item,
-        sourceTab: activeTab // Pass the current tab (0 = My Sites, 1 = All Sites)
+        sourceTab: showAll ? 1 : 0 // Pass the current tab (0 = My Sites, 1 = All Sites)
       })}
       activeOpacity={0.8}>
       <Image 
@@ -146,29 +137,9 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation }) => {
         />
       </View>
 
-      {/* Tabs */}
-      {showTabs && (
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 0 && styles.activeTab]}
-            onPress={() => setActiveTab(0)}>
-            <Text style={[styles.tabText, activeTab === 0 && styles.activeTabText]}>
-              {STRINGS.MY_SITES}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 1 && styles.activeTab]}
-            onPress={() => setActiveTab(1)}>
-            <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
-              {STRINGS.ALL_SITES}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* Site List */}
       <FlatList
-        data={currentSites}
+        data={filteredSites}
         renderItem={renderSiteItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContainer}

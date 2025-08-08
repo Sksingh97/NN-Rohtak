@@ -2,12 +2,14 @@ import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
 import siteReducer from './slices/siteSlice';
 import attendanceReducer from './slices/attendanceSlice';
+import sweeperReducer from './slices/sweeperSlice';
 
 const store = configureStore({
   reducer: {
     auth: authReducer,
     sites: siteReducer,
     attendance: attendanceReducer,
+    sweepers: sweeperReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
