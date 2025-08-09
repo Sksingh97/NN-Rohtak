@@ -152,4 +152,8 @@ export type RootStackParamList = {
     site: Site; 
     sourceTab?: number; // 0 = My Sites, 1 = All Sites (for supervisors)
   };
+  UserDetail: {
+    user: MySweeper | AllSweeper;
+    sourceTab?: number; // 0 = My Sweepers, 1 = All Sweepers
+  };
 };

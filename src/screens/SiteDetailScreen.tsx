@@ -36,7 +36,17 @@ import { withLoader } from '../components/Loader';
 import Button from '../components/Button';
 import MultiImageLocationSubmissionModal from '../components/MultiImageLocationSubmissionModal';
 import ImagePickerModal from '../components/ImagePickerModal';
-import { requestCameraPermission, requestLocationPermission, formatDateTime } from '../utils/helpers';
+import { requestCameraPermission, requestLocationPermission, formatDateTime, formatDateForGrouping } from '../utils/helpers';
+import { 
+  getTodayRange, 
+  getCurrentMonthInfo, 
+  getLastMonthInfo, 
+  getPaginatedMonthRange,
+  getCurrentMonthRange,
+  getLastMonthRange,
+  hasMorePages,
+  getNextPage 
+} from '../utils/datePagination';
 import { compressImage, compressMultipleImages } from '../utils/imageUtils';
 import { getTaskReportCompressionOptions } from '../constants/imageCompression';
 import { showSuccessToast, showErrorToast } from '../utils/toast';
@@ -90,14 +100,39 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   // Function to fetch task data for specific tab
   const fetchTasksForTab = (tabIndex: number) => {
     console.log('Fetching task data for tab:', tabIndex);
-    // For now, fetch all task images for this site - we can add date filtering later if needed
-    dispatch(fetchTaskImagesBySite({ siteId: site.id }));
+    
+    let dateRange;
+    
+    switch (tabIndex) {
+      case 0: // Today's tab
+        dateRange = getTodayRange();
+        console.log('Fetching today\'s tasks:', dateRange);
+        break;
+      case 1: // This Month tab
+        dateRange = getCurrentMonthRange();
+        console.log('Fetching this month\'s tasks:', dateRange);
+        break;
+      case 2: // Last Month tab
+        dateRange = getLastMonthRange();
+        console.log('Fetching last month\'s tasks:', dateRange);
+        break;
+      default:
+        dateRange = getTodayRange();
+        break;
+    }
+    
+    // Fetch task images with date range parameters
+    dispatch(fetchTaskImagesBySite({ 
+      siteId: site.id,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate
+    }));
   };
 
   useEffect(() => {
-    // Fetch task data for the current tab
+    // Fetch task data for the current tab whenever the active tab changes
     fetchTasksForTab(activeTab);
-  }, [dispatch, site.id]);
+  }, [dispatch, site.id, activeTab]);
 
   const getCurrentLocation = (): Promise<{latitude: number; longitude: number}> => {
     return new Promise((resolve, reject) => {
@@ -505,30 +540,21 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tab, activeTab === 0 && styles.activeTab]}
-            onPress={() => {
-              setActiveTab(0);
-              fetchTasksForTab(0);
-            }}>
+            onPress={() => setActiveTab(0)}>
             <Text style={[styles.tabText, activeTab === 0 && styles.activeTabText]}>
               Today's
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, activeTab === 1 && styles.activeTab]}
-            onPress={() => {
-              setActiveTab(1);
-              fetchTasksForTab(1);
-            }}>
+            onPress={() => setActiveTab(1)}>
             <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
               This Month
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, activeTab === 2 && styles.activeTab]}
-            onPress={() => {
-              setActiveTab(2);
-              fetchTasksForTab(2);
-            }}>
+            onPress={() => setActiveTab(2)}>
             <Text style={[styles.tabText, activeTab === 2 && styles.activeTabText]}>
               Last Month
             </Text>

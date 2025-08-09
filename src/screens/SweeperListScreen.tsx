@@ -196,7 +196,7 @@ const SweeperListScreen: React.FC<SweeperListScreenProps> = ({
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}  edges={['left', 'right']}>
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
@@ -215,7 +215,15 @@ const SweeperListScreen: React.FC<SweeperListScreenProps> = ({
       <FlatList
         data={filteredSweepers}
         renderItem={renderSweeperItem}
-        keyExtractor={(item) => showAll ? (item as AllSweeper).id : (item as MySweeper).user_id}
+        keyExtractor={(item, index) => {
+          if (showAll) {
+            const allSweeperItem = item as AllSweeper;
+            return allSweeperItem.id ? `all-sweeper-${allSweeperItem.id}` : `all-sweeper-${index}`;
+          } else {
+            const mySweeperItem = item as MySweeper;
+            return mySweeperItem.user_id ? `my-sweeper-${mySweeperItem.user_id}` : `my-sweeper-${index}`;
+          }
+        }}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={

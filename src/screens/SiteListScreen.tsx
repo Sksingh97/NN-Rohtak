@@ -113,7 +113,7 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation, showAll = f
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}  edges={['left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -141,7 +141,7 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation, showAll = f
       <FlatList
         data={filteredSites}
         renderItem={renderSiteItem}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item, index) => item.id ? item.id.toString() : `site-${index}`}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmptyList}
@@ -161,6 +161,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
+    // backgroundColor: 'yellow',
+    // alignItems: 'flex-start'
   },
   header: {
     flexDirection: 'row',

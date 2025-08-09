@@ -475,11 +475,8 @@ export const fetchTodayDataByUser = createAsyncThunk(
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      // Fetch both attendance and task images for today
-      const [attendanceResponse, taskImagesResponse] = await Promise.all([
-        apiService.getUserAttendance(userId, today, today),
-        apiService.getUserTaskImages(userId, today, today)
-      ]);
+      // Fetch only attendance for today (no task images)
+      const attendanceResponse = await apiService.getUserAttendance(userId, today, today);
       
       const attendanceData = attendanceResponse.success && attendanceResponse.data ? 
         attendanceResponse.data.map(record => ({
@@ -488,12 +485,8 @@ export const fetchTodayDataByUser = createAsyncThunk(
           description: record.notes,
         })) : [];
       
-      const taskImagesData = taskImagesResponse.success && taskImagesResponse.data ? 
-        taskImagesResponse.data : [];
-      
       return {
-        attendanceRecords: attendanceData,
-        taskImages: taskImagesData
+        attendanceRecords: attendanceData
       };
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch today\'s user data');
@@ -519,10 +512,8 @@ export const fetchPaginatedMonthDataByUser = createAsyncThunk(
     append: boolean;
   }, { rejectWithValue }) => {
     try {
-      const [attendanceResponse, taskImagesResponse] = await Promise.all([
-        apiService.getUserAttendance(userId, startDate, endDate),
-        apiService.getUserTaskImages(userId, startDate, endDate)
-      ]);
+      // Fetch only attendance (no task images)
+      const attendanceResponse = await apiService.getUserAttendance(userId, startDate, endDate);
       
       const attendanceData = attendanceResponse.success && attendanceResponse.data ? 
         attendanceResponse.data.map(record => ({
@@ -531,12 +522,8 @@ export const fetchPaginatedMonthDataByUser = createAsyncThunk(
           description: record.notes,
         })) : [];
       
-      const taskImagesData = taskImagesResponse.success && taskImagesResponse.data ? 
-        taskImagesResponse.data : [];
-      
       return {
         attendanceRecords: attendanceData,
-        taskImages: taskImagesData,
         page,
         isThisMonth,
         append
@@ -833,12 +820,14 @@ const attendanceSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(fetchTodayDataByUser.fulfilled, (state, action: PayloadAction<{attendanceRecords: AttendanceRecord[]; taskImages: TaskImageRecord[]}>) => {
+      .addCase(fetchTodayDataByUser.fulfilled, (state, action: PayloadAction<{attendanceRecords: AttendanceRecord[]}>) => {
         state.isLoading = false;
         state.attendanceRecords = action.payload.attendanceRecords;
-        state.taskImages = action.payload.taskImages;
+        // Clear task images since we're not fetching them
+        state.taskImages = [];
         state.groupedAttendanceRecords = groupAttendanceRecordsByDate(action.payload.attendanceRecords);
-        state.groupedTaskImages = groupTaskImagesByDate(action.payload.taskImages);
+        // Clear grouped task images since we're not fetching them
+        state.groupedTaskImages = {};
         // Reset pagination for fresh data
         state.thisMonthPagination = { currentPage: 0, hasMore: true, isLoadingMore: false };
         state.lastMonthPagination = { currentPage: 0, hasMore: true, isLoadingMore: false };
@@ -857,22 +846,24 @@ const attendanceSlice = createSlice({
         }
         state.error = null;
       })
-      .addCase(fetchPaginatedMonthDataByUser.fulfilled, (state, action: PayloadAction<{attendanceRecords: AttendanceRecord[]; taskImages: TaskImageRecord[]; page: number; isThisMonth: boolean; append: boolean}>) => {
-        const { attendanceRecords, taskImages, page, isThisMonth, append } = action.payload;
+      .addCase(fetchPaginatedMonthDataByUser.fulfilled, (state, action: PayloadAction<{attendanceRecords: AttendanceRecord[]; page: number; isThisMonth: boolean; append: boolean}>) => {
+        const { attendanceRecords, page, isThisMonth, append } = action.payload;
         
         if (append) {
           // Append to existing data
           state.attendanceRecords = [...state.attendanceRecords, ...attendanceRecords];
-          state.taskImages = [...state.taskImages, ...taskImages];
+          // Don't append to task images since we're not fetching them
         } else {
           // Replace existing data
           state.attendanceRecords = attendanceRecords;
-          state.taskImages = taskImages;
+          // Clear task images since we're not fetching them
+          state.taskImages = [];
         }
         
         // Update grouped data
         state.groupedAttendanceRecords = groupAttendanceRecordsByDate(state.attendanceRecords);
-        state.groupedTaskImages = groupTaskImagesByDate(state.taskImages);
+        // Clear grouped task images since we're not fetching them
+        state.groupedTaskImages = {};
         
         // Update pagination state
         if (isThisMonth) {

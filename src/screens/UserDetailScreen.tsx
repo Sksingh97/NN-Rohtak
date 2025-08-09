@@ -28,11 +28,12 @@ import { launchCamera, launchImageLibrary, ImagePickerResponse, MediaType } from
 import Geolocation from 'react-native-geolocation-service';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { RootState, AppDispatch } from '../store';
-import { AttendanceRecord, TaskImageRecord, GroupedTaskImages, TaskGroupDisplayItem, GroupedAttendanceRecords, AttendanceGroupDisplayItem, MySweeper, AllSweeper } from '../types';
+import { AttendanceRecord, GroupedAttendanceRecords, AttendanceGroupDisplayItem, MySweeper, AllSweeper } from '../types';
 import {
   fetchTodayDataByUser,
   fetchPaginatedMonthDataByUser,
   markAttendance,
+  markUserAttendance,
   resetPaginationState,
   updateHasMore,
 } from '../store/slices/attendanceSlice';
@@ -51,7 +52,7 @@ import {
   getNextPage 
 } from '../utils/datePagination';
 import { compressImage, compressMultipleImages } from '../utils/imageUtils';
-import { getAttendanceCompressionOptions, getTaskReportCompressionOptions } from '../constants/imageCompression';
+import { getAttendanceCompressionOptions } from '../constants/imageCompression';
 import { showSuccessToast, showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS, API_MESSAGES } from '../constants/strings';
@@ -95,13 +96,9 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
   const { user } = useSelector((state: RootState) => state.auth);
   const { 
     attendanceRecords,
-    taskImages,
-    groupedTaskImages,
     groupedAttendanceRecords,
     todayAttendance, 
     monthAttendance, 
-    todayTasks = [], 
-    monthTasks = [],
     thisMonthPagination,
     lastMonthPagination,
     isLoading,
@@ -109,8 +106,8 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
   } = useSelector((state: RootState) => state.attendance);
 
   // Determine if attendance should be disabled
-  // Business Rule: Disable attendance for users coming from "All Sweepers" tab
-  const isAttendanceDisabled = sourceTab === 1;
+  // Attendance should be enabled for both tabs
+  const isAttendanceDisabled = false;
   
   // Function to fetch attendance for specific tab
   const fetchAttendanceForTab = (tabIndex: number, loadMore: boolean = false) => {
@@ -199,10 +196,7 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
   };
 
   const showAttendanceImagePicker = async () => {
-    if (isAttendanceDisabled) {
-      showErrorToast('Attendance marking not available for users from All Sweepers tab');
-      return;
-    }
+  // Attendance is always enabled now
     
     // Check configuration to determine if gallery option should be shown
     if (ATTENDANCE_SHOW_SELECT_FROM_GALLERY) {
@@ -298,14 +292,14 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
       });
 
       const attendanceData = {
-        siteId: 'user_id' in selectedUser ? selectedUser.user_id : selectedUser.id,
+        userId: 'user_id' in selectedUser ? selectedUser.user_id : selectedUser.id,
         imageUri: imageWithOverlay, // Use the image with overlay
         latitude: attendanceLocation.latitude,
         longitude: attendanceLocation.longitude,
         description: address || 'User attendance',
       };
 
-      await dispatch(markAttendance(attendanceData));
+      await dispatch(markUserAttendance(attendanceData));
       
       // Reset states
       setCapturedAttendanceImage(null);
@@ -426,7 +420,7 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
     }, {});
     
     // Convert to display items
-    return Object.keys(groupedByDate).map(date => {
+    return Object.keys(groupedByDate).map((date, index) => {
       const records = groupedByDate[date];
       // Sort records by timestamp
       const sortedRecords = [...records].sort((a, b) => {
@@ -447,7 +441,7 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
       });
       
       return {
-        id: `attendance-group-${date}`,
+        id: `attendance-group-${date}-${index}-${activeTab}`,
         date,
         records: sortedRecords,
         displayRecord: sortedRecords[0] || { image_url: '', check_in_time: date, timestamp: date }, // Fallback for empty records
@@ -499,7 +493,7 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
           return (
             <View key={`user-attendance-row-${activeTab}-${rowIndex}`} style={styles.row}>
               {rowItems.map((item, columnIndex) => (
-                <View key={`user-attendance-item-${activeTab}-${item.id}-${rowIndex}-${columnIndex}`} style={styles.gridItemContainer}>
+                <View key={`user-attendance-item-${item.id}-${columnIndex}`} style={styles.gridItemContainer}>
                   {renderAttendanceGroupItem(item)}
                 </View>
               ))}
@@ -521,7 +515,7 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}  edges={['left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       
       {!selectedUser ? (
@@ -698,9 +692,10 @@ const styles = StyleSheet.create({
   userInfoCard: {
     backgroundColor: 'white',
     marginHorizontal: 20,
-    marginVertical: 8,
+    marginTop: 12,
+    marginBottom: 12,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12, // reduce vertical padding
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -762,6 +757,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e1e5e9',
+    marginTop: 0, // remove any top margin
   },
   tab: {
     flex: 1,

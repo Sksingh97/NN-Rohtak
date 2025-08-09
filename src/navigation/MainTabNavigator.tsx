@@ -63,14 +63,18 @@ const MainTabNavigator: React.FC = () => {
         },
         tabBarStyle: {
           backgroundColor: COLORS.WHITE,
+          // backgroundColor: 'red',
           borderTopWidth: 1,
           borderTopColor: COLORS.BORDER_LIGHT,
           paddingTop: 5,
           paddingBottom: 5,
-          height: 60,
+          height: 70,
+          
         },
         headerStyle: {
           backgroundColor: COLORS.PRIMARY,
+          // backgroundColor: 'red',
+          
         },
         headerTintColor: COLORS.WHITE,
         headerTitleStyle: {

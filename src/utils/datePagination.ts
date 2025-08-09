@@ -33,6 +33,28 @@ export const getTodayRange = (): DateRange => {
 };
 
 /**
+ * Get current month's complete date range
+ */
+export const getCurrentMonthRange = (): DateRange => {
+  const monthInfo = getCurrentMonthInfo();
+  return {
+    startDate: formatDateToString(monthInfo.firstDay),
+    endDate: formatDateToString(monthInfo.lastDay)
+  };
+};
+
+/**
+ * Get last month's complete date range
+ */
+export const getLastMonthRange = (): DateRange => {
+  const monthInfo = getLastMonthInfo();
+  return {
+    startDate: formatDateToString(monthInfo.firstDay),
+    endDate: formatDateToString(monthInfo.lastDay)
+  };
+};
+
+/**
  * Get information about a specific month
  */
 export const getMonthInfo = (year: number, month: number): MonthInfo => {
