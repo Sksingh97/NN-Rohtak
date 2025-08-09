@@ -25,12 +25,14 @@ export const API_ENDPOINTS = {
   // Attendance
   ATTENDANCE: {
     MARK: '/attendance/', // Query params: latitude, longitude, description
+    MARK_USER: '/attendance/', // For user-specific attendance marking
     LIST: '/attendance/', // with query params for filtering
   },
   
   // Tasks
   TASKS: {
     SUBMIT: '/tasks/submit',
+    SUBMIT_USER: '/tasks/submit-user', // For user-specific task reports
     TODAY: '/tasks/today',
     MONTH: '/tasks/month',
   },

@@ -32,6 +32,7 @@ interface SweeperListScreenProps {
 }
 
 const SweeperListScreen: React.FC<SweeperListScreenProps> = ({ 
+  navigation,
   showAll = false 
 }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -54,22 +55,37 @@ const SweeperListScreen: React.FC<SweeperListScreenProps> = ({
 
   const filteredSweepers = useMemo(() => {
     const sweepers = showAll ? allSweepers : mySweepers;
-    if (!searchQuery.trim()) return sweepers;
+    
+    console.warn('🔍 FILTERING SWEEPERS:', JSON.stringify({
+      showAll,
+      rawSweeperCount: sweepers?.length || 0,
+      sweepersSample: sweepers?.slice(0, 2), // Show first 2 items
+      searchQuery: searchQuery.trim(),
+    }, null, 2));
+    
+    if (!searchQuery.trim()) {
+      console.warn('📋 RETURNING ALL SWEEPERS:', sweepers?.length || 0);
+      return sweepers;
+    }
     
     if (showAll) {
-      return (sweepers as AllSweeper[]).filter((sweeper: AllSweeper) =>
+      const filtered = (sweepers as AllSweeper[]).filter((sweeper: AllSweeper) =>
         sweeper.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         sweeper.sites.some((site: string) => 
           site.toLowerCase().includes(searchQuery.toLowerCase())
         )
       );
+      console.warn('🔍 FILTERED ALL SWEEPERS:', filtered.length);
+      return filtered;
     } else {
-      return (sweepers as MySweeper[]).filter((sweeper: MySweeper) =>
+      const filtered = (sweepers as MySweeper[]).filter((sweeper: MySweeper) =>
         sweeper.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         sweeper.sites.some((site: string) => 
           site.toLowerCase().includes(searchQuery.toLowerCase())
         )
       );
+      console.warn('🔍 FILTERED MY SWEEPERS:', filtered.length);
+      return filtered;
     }
   }, [showAll, allSweepers, mySweepers, searchQuery]);
 
@@ -82,8 +98,10 @@ const SweeperListScreen: React.FC<SweeperListScreenProps> = ({
   };
 
   const handleSweeperPress = (sweeper: MySweeper | AllSweeper) => {
-    // Navigate to sweeper detail screen (to be implemented)
-    Alert.alert('Sweeper Details', `Name: ${sweeper.name}\nSites: ${sweeper.sites.join(', ')}`);
+    navigation.navigate('UserDetail', {
+      user: sweeper,
+      sourceTab: showAll ? 1 : 0 // 0 for My Sweepers, 1 for All Sweepers
+    });
   };
 
   const renderSweeperItem = ({ item }: { item: MySweeper | AllSweeper }) => {

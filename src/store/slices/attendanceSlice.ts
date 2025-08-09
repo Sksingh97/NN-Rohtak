@@ -363,6 +363,190 @@ export const fetchPaginatedMonthDataBySite = createAsyncThunk(
   }
 );
 
+// Async thunk for marking user attendance (new action for user-specific attendance)
+export const markUserAttendance = createAsyncThunk(
+  'attendance/markUserAttendance',
+  async (
+    { userId, imageUri, latitude, longitude, description }: {
+      userId: string;
+      imageUri: string;
+      latitude: number;
+      longitude: number;
+      description: string;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await apiService.markUserAttendance(
+        userId,
+        latitude,
+        longitude,
+        description,
+        imageUri
+      );
+      
+      if (response.success && response.data) {
+        return response.data as AttendanceRecord;
+      } else {
+        return rejectWithValue(response.error || 'Failed to mark user attendance');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to mark user attendance');
+    }
+  }
+);
+
+// Async thunk for submitting user task report (new action for user-specific task reports)
+export const submitUserTaskReport = createAsyncThunk(
+  'attendance/submitUserTaskReport',
+  async (
+    { userId, imageUris, latitude, longitude, description }: {
+      userId: string;
+      imageUris: string[];
+      latitude: number;
+      longitude: number;
+      description: string;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await apiService.submitUserTaskReport(
+        userId,
+        latitude,
+        longitude,
+        description,
+        imageUris
+      );
+      
+      if (response.success && response.data) {
+        return response.data as TaskImageRecord[];
+      } else {
+        return rejectWithValue(response.error || 'Failed to submit user task report');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to submit user task report');
+    }
+  }
+);
+
+// User-specific attendance fetch functions (similar to site-specific but with user_id)
+export const fetchUserAttendance = createAsyncThunk(
+  'attendance/fetchUserAttendance',
+  async ({ userId, startDate, endDate }: { userId: string; startDate?: string; endDate?: string }, { rejectWithValue }) => {
+    try {
+      const response = await apiService.getUserAttendance(userId, startDate, endDate);
+      
+      if (response.success && response.data) {
+        const mappedData = response.data.map(record => ({
+          ...record,
+          timestamp: record.check_in_time,
+          description: record.notes,
+        }));
+        return mappedData;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch user attendance records');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch user attendance records');
+    }
+  }
+);
+
+export const fetchUserTaskImages = createAsyncThunk(
+  'attendance/fetchUserTaskImages',
+  async ({ userId, startDate, endDate }: { userId: string; startDate?: string; endDate?: string }, { rejectWithValue }) => {
+    try {
+      const response = await apiService.getUserTaskImages(userId, startDate, endDate);
+      
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch user task images');
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch user task images');
+    }
+  }
+);
+
+export const fetchTodayDataByUser = createAsyncThunk(
+  'attendance/fetchTodayDataByUser',
+  async ({ userId }: { userId: string }, { rejectWithValue }) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Fetch both attendance and task images for today
+      const [attendanceResponse, taskImagesResponse] = await Promise.all([
+        apiService.getUserAttendance(userId, today, today),
+        apiService.getUserTaskImages(userId, today, today)
+      ]);
+      
+      const attendanceData = attendanceResponse.success && attendanceResponse.data ? 
+        attendanceResponse.data.map(record => ({
+          ...record,
+          timestamp: record.check_in_time,
+          description: record.notes,
+        })) : [];
+      
+      const taskImagesData = taskImagesResponse.success && taskImagesResponse.data ? 
+        taskImagesResponse.data : [];
+      
+      return {
+        attendanceRecords: attendanceData,
+        taskImages: taskImagesData
+      };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch today\'s user data');
+    }
+  }
+);
+
+export const fetchPaginatedMonthDataByUser = createAsyncThunk(
+  'attendance/fetchPaginatedMonthDataByUser',
+  async ({ 
+    userId, 
+    startDate, 
+    endDate, 
+    page, 
+    isThisMonth, 
+    append 
+  }: { 
+    userId: string; 
+    startDate: string; 
+    endDate: string; 
+    page: number; 
+    isThisMonth: boolean;
+    append: boolean;
+  }, { rejectWithValue }) => {
+    try {
+      const [attendanceResponse, taskImagesResponse] = await Promise.all([
+        apiService.getUserAttendance(userId, startDate, endDate),
+        apiService.getUserTaskImages(userId, startDate, endDate)
+      ]);
+      
+      const attendanceData = attendanceResponse.success && attendanceResponse.data ? 
+        attendanceResponse.data.map(record => ({
+          ...record,
+          timestamp: record.check_in_time,
+          description: record.notes,
+        })) : [];
+      
+      const taskImagesData = taskImagesResponse.success && taskImagesResponse.data ? 
+        taskImagesResponse.data : [];
+      
+      return {
+        attendanceRecords: attendanceData,
+        taskImages: taskImagesData,
+        page,
+        isThisMonth,
+        append
+      };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch paginated month data for user');
+    }
+  }
+);
+
 const attendanceSlice = createSlice({
   name: 'attendance',
   initialState,
@@ -580,6 +764,136 @@ const attendanceSlice = createSlice({
         } else {
           state.lastMonthPagination.isLoadingMore = false;
         }
+        state.error = action.payload as string;
+      })
+      // Handle markUserAttendance
+      .addCase(markUserAttendance.pending, (state) => {
+        state.isMarkingAttendance = true;
+        state.error = null;
+      })
+      .addCase(markUserAttendance.fulfilled, (state, action: PayloadAction<AttendanceRecord>) => {
+        state.isMarkingAttendance = false;
+        // Add new attendance record to the existing attendanceRecords array
+        state.attendanceRecords = [action.payload, ...state.attendanceRecords];
+        // Regroup attendance records by date
+        state.groupedAttendanceRecords = groupAttendanceRecordsByDate(state.attendanceRecords);
+        state.error = null;
+      })
+      .addCase(markUserAttendance.rejected, (state, action) => {
+        state.isMarkingAttendance = false;
+        state.error = action.payload as string;
+      })
+      // Handle submitUserTaskReport
+      .addCase(submitUserTaskReport.pending, (state) => {
+        state.isSubmittingTask = true;
+        state.error = null;
+      })
+      .addCase(submitUserTaskReport.fulfilled, (state, action: PayloadAction<TaskImageRecord[]>) => {
+        state.isSubmittingTask = false;
+        // Add new task images to the existing taskImages array
+        state.taskImages = [...state.taskImages, ...action.payload];
+        // Regroup task images by date
+        state.groupedTaskImages = groupTaskImagesByDate(state.taskImages);
+        state.error = null;
+      })
+      .addCase(submitUserTaskReport.rejected, (state, action) => {
+        state.isSubmittingTask = false;
+        state.error = action.payload as string;
+      })
+      // User-specific attendance reducers
+      .addCase(fetchUserAttendance.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchUserAttendance.fulfilled, (state, action: PayloadAction<AttendanceRecord[]>) => {
+        state.isLoading = false;
+        state.attendanceRecords = action.payload;
+        state.groupedAttendanceRecords = groupAttendanceRecordsByDate(action.payload);
+        state.error = null;
+      })
+      .addCase(fetchUserAttendance.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchUserTaskImages.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchUserTaskImages.fulfilled, (state, action: PayloadAction<TaskImageRecord[]>) => {
+        state.isLoading = false;
+        state.taskImages = action.payload;
+        state.groupedTaskImages = groupTaskImagesByDate(action.payload);
+        state.error = null;
+      })
+      .addCase(fetchUserTaskImages.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchTodayDataByUser.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchTodayDataByUser.fulfilled, (state, action: PayloadAction<{attendanceRecords: AttendanceRecord[]; taskImages: TaskImageRecord[]}>) => {
+        state.isLoading = false;
+        state.attendanceRecords = action.payload.attendanceRecords;
+        state.taskImages = action.payload.taskImages;
+        state.groupedAttendanceRecords = groupAttendanceRecordsByDate(action.payload.attendanceRecords);
+        state.groupedTaskImages = groupTaskImagesByDate(action.payload.taskImages);
+        // Reset pagination for fresh data
+        state.thisMonthPagination = { currentPage: 0, hasMore: true, isLoadingMore: false };
+        state.lastMonthPagination = { currentPage: 0, hasMore: true, isLoadingMore: false };
+        state.error = null;
+      })
+      .addCase(fetchTodayDataByUser.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchPaginatedMonthDataByUser.pending, (state, action) => {
+        const { isThisMonth } = action.meta.arg;
+        if (isThisMonth) {
+          state.thisMonthPagination.isLoadingMore = true;
+        } else {
+          state.lastMonthPagination.isLoadingMore = true;
+        }
+        state.error = null;
+      })
+      .addCase(fetchPaginatedMonthDataByUser.fulfilled, (state, action: PayloadAction<{attendanceRecords: AttendanceRecord[]; taskImages: TaskImageRecord[]; page: number; isThisMonth: boolean; append: boolean}>) => {
+        const { attendanceRecords, taskImages, page, isThisMonth, append } = action.payload;
+        
+        if (append) {
+          // Append to existing data
+          state.attendanceRecords = [...state.attendanceRecords, ...attendanceRecords];
+          state.taskImages = [...state.taskImages, ...taskImages];
+        } else {
+          // Replace existing data
+          state.attendanceRecords = attendanceRecords;
+          state.taskImages = taskImages;
+        }
+        
+        // Update grouped data
+        state.groupedAttendanceRecords = groupAttendanceRecordsByDate(state.attendanceRecords);
+        state.groupedTaskImages = groupTaskImagesByDate(state.taskImages);
+        
+        // Update pagination state
+        if (isThisMonth) {
+          state.thisMonthPagination.currentPage = page;
+          state.thisMonthPagination.isLoadingMore = false;
+        } else {
+          state.lastMonthPagination.currentPage = page;
+          state.lastMonthPagination.isLoadingMore = false;
+        }
+        
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(fetchPaginatedMonthDataByUser.rejected, (state, action) => {
+        const { isThisMonth } = action.meta.arg;
+        if (isThisMonth) {
+          state.thisMonthPagination.isLoadingMore = false;
+        } else {
+          state.lastMonthPagination.isLoadingMore = false;
+        }
+        state.isLoading = false;
         state.error = action.payload as string;
       });
   },

@@ -434,6 +434,18 @@ class ApiService {
     return this.get(API_ENDPOINTS.USER.APP_ALLOWED_ROLES, {}, true); // Auth required
   }
 
+  // Sweeper methods - consistent with site methods pattern
+  public async getMySweepers(): Promise<ApiResponse<any[]>> {
+    console.warn('🔍 API SERVICE: Getting MY SWEEPERS from', API_ENDPOINTS.USER.MY_SITES_USERS);
+    return this.get(API_ENDPOINTS.USER.MY_SITES_USERS);
+  }
+
+  public async getAllSweepers(): Promise<ApiResponse<any[]>> {
+    const endpoint = `${API_ENDPOINTS.USER.MY_SITES_USERS}?role=worker`;
+    console.warn('🔍 API SERVICE: Getting ALL SWEEPERS from', endpoint);
+    return this.get(endpoint);
+  }
+
   // Mark attendance method
   public async markAttendance(
     site_id: string,
@@ -697,6 +709,347 @@ class ApiService {
     });
   }
 
+  // Mark user attendance method (new method for user-specific attendance)
+  public async markUserAttendance(
+    user_id: string,
+    latitude: number,
+    longitude: number,
+    description: string,
+    imageUri: string
+  ): Promise<ApiResponse<any>> {
+    console.warn('📸 MARK USER ATTENDANCE CALLED WITH:', JSON.stringify({
+      user_id,
+      latitude,
+      longitude,
+      description,
+      imageUri,
+    }, null, 2));
+
+    try {
+      // Create FormData for file upload
+      const formData = new FormData();
+      
+      // For React Native, the file object needs to be structured properly
+      const fileObject = {
+        uri: imageUri,
+        type: 'image/jpeg', // Use JPEG which is more compatible
+        name: `user_attendance_${Date.now()}.jpg`,
+      };
+      
+      formData.append('file', fileObject as any);
+
+      console.warn('📸 USER ATTENDANCE FORM DATA FILE:', JSON.stringify(fileObject, null, 2));
+
+      // Create query params with user_id instead of site_id
+      const queryParams = new URLSearchParams({
+        user_id,
+        latitude: latitude.toString(),
+        longitude: longitude.toString(),
+        description,
+      });
+
+      // Use a new endpoint for user attendance (you may need to update your backend)
+      const url = `${this.baseURL}${API_ENDPOINTS.ATTENDANCE.MARK_USER || API_ENDPOINTS.ATTENDANCE.MARK}?${queryParams.toString()}`;
+      // Don't set Content-Type for FormData - let the browser set it with boundary
+      const headers = await this.generateHeaders({}, true);
+      // Remove Content-Type for FormData uploads
+      delete headers['Content-Type'];
+
+      // 📝 LOG USER ATTENDANCE REQUEST
+      console.warn('📸 MARK USER ATTENDANCE REQUEST:', JSON.stringify({
+        method: 'POST',
+        url,
+        headers: {
+          ...headers,
+          Authorization: headers.Authorization ? 'Bearer ***' : undefined, // Hide token in logs
+        },
+        queryParams: {
+          user_id,
+          latitude,
+          longitude,
+          description,
+        },
+        fileInfo: fileObject,
+        timestamp: new Date().toISOString(),
+      }, null, 2));
+
+      // Create abort controller for timeout (longer timeout for file uploads)
+      const controller = new AbortController();
+      const uploadTimeout = 60000; // 60 seconds for file uploads
+      const timeoutId = setTimeout(() => {
+        console.error('⏰ USER ATTENDANCE UPLOAD TIMEOUT after', uploadTimeout, 'ms');
+        controller.abort();
+      }, uploadTimeout);
+
+      try {
+        const requestStartTime = Date.now();
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: formData,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+        const requestDuration = Date.now() - requestStartTime;
+
+        // Parse response
+        let responseData: any;
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          responseData = await response.json();
+        } else {
+          responseData = await response.text();
+        }
+
+        // 📝 LOG USER ATTENDANCE RESPONSE
+        if (response.ok) {
+          console.warn('✅ MARK USER ATTENDANCE SUCCESS:', JSON.stringify({
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${requestDuration}ms`,
+            contentType,
+            data: responseData,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+        } else {
+          console.error('❌ MARK USER ATTENDANCE ERROR:', JSON.stringify({
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${requestDuration}ms`,
+            contentType,
+            error: responseData?.message || responseData,
+            fullResponse: responseData,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+        }
+
+        // Handle 401 Unauthorized or 403 Forbidden in user attendance marking
+        if (response.status === 401 || response.status === 403) {
+          console.warn('🚨 401/403 UNAUTHORIZED/FORBIDDEN IN MARK USER ATTENDANCE - INITIATING LOGOUT');
+          
+          this.handleUnauthorized().catch(error => {
+            console.error('Error handling unauthorized/forbidden in mark user attendance:', error);
+          });
+          
+          return {
+            error: 'Session expired or access forbidden. Please login again.',
+            success: false,
+          };
+        }
+
+        if (!response.ok) {
+          return {
+            error: responseData?.message || responseData || `HTTP ${response.status}: ${response.statusText}`,
+            success: false,
+          };
+        }
+
+        return {
+          data: responseData,
+          success: true,
+        };
+
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        // 📝 LOG USER ATTENDANCE FETCH ERROR
+        console.error('🔥 MARK USER ATTENDANCE FAILED:', JSON.stringify({
+          error: fetchError.message,
+          errorType: fetchError.name,
+          stack: fetchError.stack,
+          url,
+          timestamp: new Date().toISOString(),
+        }, null, 2));
+        
+        let errorMessage = 'Network request failed';
+        if (fetchError.name === 'AbortError') {
+          errorMessage = 'Upload timeout - please check your internet connection and try again';
+        } else if (fetchError.message.includes('Network request failed')) {
+          errorMessage = 'Cannot connect to server. Please check if your backend server is running and accessible.';
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+    } catch (error: any) {
+      // 📝 LOG USER ATTENDANCE GENERAL ERROR
+      console.error('💥 MARK USER ATTENDANCE ERROR:', {
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      });
+      
+      return {
+        error: error.message || 'Failed to mark user attendance',
+        success: false,
+      };
+    }
+  }
+
+  // Submit user task report method (new method for user-specific task reports)
+  public async submitUserTaskReport(
+    user_id: string,
+    latitude: number,
+    longitude: number,
+    description: string,
+    imageUris: string[]
+  ): Promise<ApiResponse<any>> {
+    console.warn('📸 SUBMIT USER TASK REPORT CALLED WITH:', JSON.stringify({
+      user_id,
+      latitude,
+      longitude,
+      description,
+      imageCount: imageUris.length,
+    }, null, 2));
+
+    try {
+      // Create FormData for multiple file upload
+      const formData = new FormData();
+      
+      // Add multiple images to the form data
+      imageUris.forEach((imageUri, index) => {
+        const fileObject = {
+          uri: imageUri,
+          type: 'image/jpeg',
+          name: `user_task_${Date.now()}_${index}.jpg`,
+        };
+        formData.append('files', fileObject as any); // Use 'files' for multiple files
+      });
+
+      // Create query params with user_id instead of site_id
+      const queryParams = new URLSearchParams({
+        user_id,
+        latitude: latitude.toString(),
+        longitude: longitude.toString(),
+        description,
+      });
+
+      // Use a new endpoint for user task reports (you may need to update your backend)
+      const url = `${this.baseURL}${API_ENDPOINTS.TASKS.SUBMIT_USER || API_ENDPOINTS.TASKS.SUBMIT}?${queryParams.toString()}`;
+      const headers = await this.generateHeaders({}, true);
+      // Remove Content-Type for FormData uploads
+      delete headers['Content-Type'];
+
+      // 📝 LOG USER TASK REPORT REQUEST
+      console.warn('📸 SUBMIT USER TASK REPORT REQUEST:', JSON.stringify({
+        method: 'POST',
+        url,
+        queryParams: {
+          user_id,
+          latitude,
+          longitude,
+          description,
+        },
+        imageCount: imageUris.length,
+        timestamp: new Date().toISOString(),
+      }, null, 2));
+
+      const controller = new AbortController();
+      const uploadTimeout = 90000; // 90 seconds for multiple file uploads
+      const timeoutId = setTimeout(() => {
+        console.error('⏰ USER TASK REPORT UPLOAD TIMEOUT after', uploadTimeout, 'ms');
+        controller.abort();
+      }, uploadTimeout);
+
+      try {
+        const requestStartTime = Date.now();
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: formData,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+        const requestDuration = Date.now() - requestStartTime;
+
+        let responseData: any;
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          responseData = await response.json();
+        } else {
+          responseData = await response.text();
+        }
+
+        // 📝 LOG USER TASK REPORT RESPONSE
+        if (response.ok) {
+          console.warn('✅ SUBMIT USER TASK REPORT SUCCESS:', JSON.stringify({
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${requestDuration}ms`,
+            data: responseData,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+        } else {
+          console.error('❌ SUBMIT USER TASK REPORT ERROR:', JSON.stringify({
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${requestDuration}ms`,
+            error: responseData?.message || responseData,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+        }
+
+        if (response.status === 401 || response.status === 403) {
+          this.handleUnauthorized().catch(error => {
+            console.error('Error handling unauthorized/forbidden in submit user task report:', error);
+          });
+          
+          return {
+            error: 'Session expired or access forbidden. Please login again.',
+            success: false,
+          };
+        }
+
+        if (!response.ok) {
+          return {
+            error: responseData?.message || responseData || `HTTP ${response.status}: ${response.statusText}`,
+            success: false,
+          };
+        }
+
+        return {
+          data: responseData,
+          success: true,
+        };
+
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        console.error('🔥 SUBMIT USER TASK REPORT FAILED:', JSON.stringify({
+          error: fetchError.message,
+          errorType: fetchError.name,
+          url,
+          timestamp: new Date().toISOString(),
+        }, null, 2));
+        
+        let errorMessage = 'Network request failed';
+        if (fetchError.name === 'AbortError') {
+          errorMessage = 'Upload timeout - please check your internet connection and try again';
+        } else if (fetchError.message.includes('Network request failed')) {
+          errorMessage = 'Cannot connect to server. Please check if your backend server is running and accessible.';
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+    } catch (error: any) {
+      console.error('💥 SUBMIT USER TASK REPORT ERROR:', {
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      });
+      
+      return {
+        error: error.message || 'Failed to submit user task report',
+        success: false,
+      };
+    }
+  }
+
   public async getTaskImages(
     siteId: string,
     startDate?: string,
@@ -704,6 +1057,43 @@ class ApiService {
   ): Promise<ApiResponse<TaskImageRecord[]>> {
     const queryParams = new URLSearchParams({
       site_id: siteId,
+    });
+    
+    if (startDate) {
+      queryParams.append('start_date', startDate);
+    }
+    
+    if (endDate) {
+      queryParams.append('end_date', endDate);
+    }
+    
+    return this.get(`${API_ENDPOINTS.PHOTOS.LIST}?${queryParams.toString()}`);
+  }
+
+  // User-specific attendance methods (similar to site-specific but with user_id)
+  public async getUserAttendance(userId: string, startDate?: string, endDate?: string): Promise<ApiResponse<AttendanceRecord[]>> {
+    const queryParams = new URLSearchParams({
+      user_id: userId,
+    });
+    
+    if (startDate) {
+      queryParams.append('start_date', startDate);
+    }
+    
+    if (endDate) {
+      queryParams.append('end_date', endDate);
+    }
+    
+    return this.get(`${API_ENDPOINTS.ATTENDANCE.LIST}?${queryParams.toString()}`);
+  }
+
+  public async getUserTaskImages(
+    userId: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<ApiResponse<TaskImageRecord[]>> {
+    const queryParams = new URLSearchParams({
+      user_id: userId,
     });
     
     if (startDate) {
