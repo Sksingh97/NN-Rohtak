@@ -357,22 +357,31 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
   };
 
   const renderAttendanceGroupItem = (item: AttendanceGroupDisplayItem) => {
+    // Defensive check for malformed data
+    if (!item || !item.displayRecord) {
+      return (
+        <View style={styles.attendanceItem}>
+          <Text style={styles.attendanceTime}>Invalid data</Text>
+        </View>
+      );
+    }
+
     const allImageUrls = item.records
-      .map(record => record.image_url)
-      .filter(url => url); // Filter out null/undefined URLs
+      ?.map(record => record?.image_url)
+      ?.filter(url => url) || []; // Filter out null/undefined URLs
     
     return (
       <View style={styles.attendanceItem}>
         <TouchableOpacity onPress={() => openPhotoPreview(item.displayRecord.image_url, allImageUrls)}>
           <Image source={{ uri: item.displayRecord.image_url }} style={styles.attendanceImage} />
-          {item.recordCount > 1 && (
+          {item.recordCount && item.recordCount > 1 && (
             <View style={styles.imageCountBadge}>
-              <Text style={styles.imageCountText}>{item.recordCount}</Text>
+              <Text style={styles.imageCountText}>{item.recordCount || 0}</Text>
             </View>
           )}
         </TouchableOpacity>
         <Text style={styles.attendanceTime}>
-          {formatDateTime(item.timestamp)}
+          {item.timestamp ? formatDateTime(item.timestamp) : 'No timestamp'}
         </Text>
         <Text style={styles.recordType}>
           Attendance
@@ -403,6 +412,11 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
     
     // Group records by date first
     const groupedByDate = attendanceRecords.reduce((acc: { [key: string]: AttendanceRecord[] }, record: AttendanceRecord) => {
+      // Defensive check for malformed record
+      if (!record || !record.date) {
+        return acc;
+      }
+      
       const date = record.date;
       if (!acc[date]) {
         acc[date] = [];
@@ -436,7 +450,7 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
         id: `attendance-group-${date}`,
         date,
         records: sortedRecords,
-        displayRecord: sortedRecords[0], // Use latest record
+        displayRecord: sortedRecords[0] || { image_url: '', check_in_time: date, timestamp: date }, // Fallback for empty records
         recordCount: sortedRecords.length,
         timestamp: sortedRecords[0]?.check_in_time || sortedRecords[0]?.timestamp || date,
       };
@@ -510,6 +524,12 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       
+      {!selectedUser ? (
+        <View style={styles.centerContainer}>
+          <Text style={styles.loadingText}>Loading user details...</Text>
+        </View>
+      ) : (
+      <>
       <ScrollView
         style={styles.mainScrollView}
         showsVerticalScrollIndicator={false}
@@ -522,24 +542,18 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
           }
         }}
       >
-        {/* User Info Card */}
         <View style={styles.userInfoCard}>
         <View style={styles.userHeader}>
           <View style={styles.userIconContainer}>
             <UserIcon size={40} color={COLORS.PRIMARY} />
           </View>
           <View style={styles.userHeaderText}>
-            <Text style={styles.userName}>{selectedUser.name}</Text>
+            <Text style={styles.userName}>{selectedUser?.name || 'User Name'}</Text>
             <View style={styles.userDetailsContainer}>
               <Text style={styles.siteCountText}>
-                Sites: {selectedUser.sites ? selectedUser.sites.length : 0}
+                Sites: {selectedUser?.sites ? selectedUser.sites.length : 0}
               </Text>
-              {'mobile' in selectedUser && selectedUser.mobile && (
-                <Text style={styles.userDetail}>� {selectedUser.mobile}</Text>
-              )}
-              {'role' in selectedUser && selectedUser.role && (
-                <Text style={styles.userDetail}>👤 {selectedUser.role}</Text>
-              )}
+              
             </View>
           </View>
         </View>
@@ -560,11 +574,9 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
         ))}
       </View>
 
-        {/* Content */}
         {renderContent()}
       </ScrollView>
 
-      {/* Attendance Button - Only show if not disabled */}
       {!isAttendanceDisabled && (
         <View style={styles.buttonContainer}>
           <Button
@@ -573,7 +585,7 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
             disabled={isMarkingAttendance || isProcessingAttendanceImage}
           />
         </View>
-      )}      {/* Modals */}
+      )}
       <ImagePickerModal
         visible={isAttendancePickerVisible}
         onClose={() => setIsAttendancePickerVisible(false)}
@@ -597,7 +609,6 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
         title="Mark Attendance"
       />
 
-      {/* Photo Preview Modal */}
       <Modal
         visible={isPreviewVisible}
         transparent={true}
@@ -651,6 +662,8 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
           </View>
         </View>
       </Modal>
+      </>
+      )}
     </SafeAreaView>
   );
 };

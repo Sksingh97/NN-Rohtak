@@ -27,41 +27,21 @@ import { launchCamera, launchImageLibrary, ImagePickerResponse, MediaType } from
 import Geolocation from 'react-native-geolocation-service';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { RootState, AppDispatch } from '../store';
-import { AttendanceRecord, TaskImageRecord, GroupedTaskImages, TaskGroupDisplayItem, GroupedAttendanceRecords, AttendanceGroupDisplayItem } from '../types';
+import { TaskImageRecord, GroupedTaskImages, TaskGroupDisplayItem } from '../types';
 import {
-  fetchTodayAttendance,
-  fetchMonthAttendance,
-  fetchTodayTasks,
-  fetchMonthTasks,
-  fetchAttendanceBySite,
   fetchTaskImagesBySite,
-  fetchTodayDataBySite,
-  fetchPaginatedMonthDataBySite,
-  markAttendance,
   submitTaskReport,
-  resetPaginationState,
-  updateHasMore,
 } from '../store/slices/attendanceSlice';
 import { withLoader } from '../components/Loader';
 import Button from '../components/Button';
-import LocationSubmissionModal from '../components/LocationSubmissionModal';
 import MultiImageLocationSubmissionModal from '../components/MultiImageLocationSubmissionModal';
 import ImagePickerModal from '../components/ImagePickerModal';
-import { ATTENDANCE_SHOW_SELECT_FROM_GALLERY } from '../constants/attendanceConfig';
-import { requestCameraPermission, requestLocationPermission, formatDateTime, formatDateForGrouping, getCurrentMonthRange, getLastMonthRange } from '../utils/helpers';
-import { 
-  getTodayRange, 
-  getCurrentMonthInfo, 
-  getLastMonthInfo, 
-  getPaginatedMonthRange, 
-  hasMorePages,
-  getNextPage 
-} from '../utils/datePagination';
+import { requestCameraPermission, requestLocationPermission, formatDateTime } from '../utils/helpers';
 import { compressImage, compressMultipleImages } from '../utils/imageUtils';
-import { getAttendanceCompressionOptions, getTaskReportCompressionOptions } from '../constants/imageCompression';
+import { getTaskReportCompressionOptions } from '../constants/imageCompression';
 import { showSuccessToast, showErrorToast } from '../utils/toast';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
-import { STRINGS, API_MESSAGES } from '../constants/strings';
+import { API_MESSAGES } from '../constants/strings';
 
 type SiteDetailScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SiteDetail'>;
 type SiteDetailScreenRouteProp = RouteProp<RootStackParamList, 'SiteDetail'>;
@@ -81,15 +61,6 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
-  // Attendance modal states
-  const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
-  const [capturedAttendanceImage, setCapturedAttendanceImage] = useState<string | null>(null);
-  const [attendanceLocation, setAttendanceLocation] = useState<{
-    latitude: number;
-    longitude: number;
-    timestamp: string;
-  } | null>(null);
-  
   // Task report modal states
   const [isTaskReportModalVisible, setIsTaskReportModalVisible] = useState(false);
   const [capturedTaskImages, setCapturedTaskImages] = useState<string[]>([]);
@@ -99,12 +70,10 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     timestamp: string;
   } | null>(null);
   
-  // Image picker modal states
+  // Image picker modal states (task only)
   const [isTaskPickerVisible, setIsTaskPickerVisible] = useState(false);
-  const [isAttendancePickerVisible, setIsAttendancePickerVisible] = useState(false);
   
   // Processing states for user feedback
-  const [isProcessingAttendanceImage, setIsProcessingAttendanceImage] = useState(false);
   const [isProcessingTaskImages, setIsProcessingTaskImages] = useState(false);
   
   const dispatch = useDispatch<AppDispatch>();
@@ -112,110 +81,23 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
   const { site, sourceTab } = route.params;
   const { user } = useSelector((state: RootState) => state.auth);
   const { 
-    attendanceRecords,
     taskImages,
     groupedTaskImages,
-    groupedAttendanceRecords,
-    todayAttendance, 
-    monthAttendance, 
-    todayTasks = [], 
-    monthTasks = [],
-    thisMonthPagination,
-    lastMonthPagination,
     isLoading,
-    isMarkingAttendance,
     isSubmittingTask = false
   } = useSelector((state: RootState) => state.attendance);
 
-  // Determine if attendance should be disabled
-  // Business Rule: Disable attendance for supervisors coming from "All Sites" tab (sourceTab === 1)
-  // Rationale: Supervisors only have temporary access to sites in "All Sites" for task submission 
-  // on behalf of others, but cannot mark their own attendance at sites they don't directly manage.
-  // They can only mark attendance at sites from "My Sites" tab (sourceTab === 0 or undefined).
-  const isAttendanceDisabled = user?.role === 2 && sourceTab === 1;
-  
-  // 📝 LOG ATTENDANCE ACCESS CONTROL
-  console.warn('🔐 ATTENDANCE ACCESS CONTROL:', JSON.stringify({
-    userRole: user?.role,
-    sourceTab,
-    isAttendanceDisabled,
-    siteName: site.name,
-    timestamp: new Date().toISOString(),
-  }, null, 2));
-  
-  // Function to fetch attendance for specific tab
-  const fetchAttendanceForTab = (tabIndex: number, loadMore: boolean = false) => {
-    if (tabIndex === 0) {
-      // Today's tab - single API call with today's date
-      console.log('Fetching Today\'s data');
-      dispatch(fetchTodayDataBySite({ siteId: site.id }));
-    } else if (tabIndex === 1) {
-      // This Month tab - paginated calls
-      const monthInfo = getCurrentMonthInfo();
-      const currentPage = loadMore ? thisMonthPagination.currentPage + 1 : 1;
-      
-      if (!loadMore) {
-        // Reset pagination state for fresh load
-        dispatch(resetPaginationState({ isThisMonth: true }));
-      }
-      
-      const paginatedRange = getPaginatedMonthRange(monthInfo, currentPage, 6, true);
-      console.log('Fetching This Month data:', { ...paginatedRange, currentPage, loadMore });
-      
-      dispatch(fetchPaginatedMonthDataBySite({ 
-        siteId: site.id, 
-        startDate: paginatedRange.startDate, 
-        endDate: paginatedRange.endDate,
-        page: currentPage,
-        isThisMonth: true,
-        append: loadMore
-      }));
-      
-      // Update hasMore flag
-      dispatch(updateHasMore({ 
-        isThisMonth: true, 
-        hasMore: paginatedRange.hasMore 
-      }));
-    } else {
-      // Last Month tab - paginated calls
-      const monthInfo = getLastMonthInfo();
-      const currentPage = loadMore ? lastMonthPagination.currentPage + 1 : 1;
-      
-      if (!loadMore) {
-        // Reset pagination state for fresh load
-        dispatch(resetPaginationState({ isThisMonth: false }));
-      }
-      
-      const paginatedRange = getPaginatedMonthRange(monthInfo, currentPage, 6, false);
-      console.log('Fetching Last Month data:', { ...paginatedRange, currentPage, loadMore });
-      
-      dispatch(fetchPaginatedMonthDataBySite({ 
-        siteId: site.id, 
-        startDate: paginatedRange.startDate, 
-        endDate: paginatedRange.endDate,
-        page: currentPage,
-        isThisMonth: false,
-        append: loadMore
-      }));
-      
-      // Update hasMore flag
-      dispatch(updateHasMore({ 
-        isThisMonth: false, 
-        hasMore: paginatedRange.hasMore 
-      }));
-    }
+  // Function to fetch task data for specific tab
+  const fetchTasksForTab = (tabIndex: number) => {
+    console.log('Fetching task data for tab:', tabIndex);
+    // For now, fetch all task images for this site - we can add date filtering later if needed
+    dispatch(fetchTaskImagesBySite({ siteId: site.id }));
   };
 
   useEffect(() => {
-    // Fetch attendance records for the current tab (default to Today's - tab 0)
-    fetchAttendanceForTab(activeTab);
-    
-    // Keep existing user-based fetching for tasks if needed
-    if (user?.id) {
-      // dispatch(fetchTodayTasks(user.id)); // Today's tasks
-      // dispatch(fetchMonthTasks(user.id)); // Month tasks
-    }
-  }, [dispatch, site.id, user?.id]);
+    // Fetch task data for the current tab
+    fetchTasksForTab(activeTab);
+  }, [dispatch, site.id]);
 
   const getCurrentLocation = (): Promise<{latitude: number; longitude: number}> => {
     return new Promise((resolve, reject) => {
@@ -232,47 +114,8 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     });
   };
 
-  const showAttendanceImagePicker = async () => {
-    // Check configuration to determine if gallery option should be shown
-    if (ATTENDANCE_SHOW_SELECT_FROM_GALLERY) {
-      // Show picker modal with both camera and gallery options
-      setIsAttendancePickerVisible(true);
-    } else {
-      // For security, only allow camera capture to ensure user is physically present
-      // Don't show picker modal - directly open camera
-      await openAttendanceCamera();
-    }
-  };
-
   const showTaskImagePicker = () => {
     setIsTaskPickerVisible(true);
-  };
-
-  const openAttendanceCamera = async () => {
-    const hasCameraPermission = await requestCameraPermission();
-    if (!hasCameraPermission) {
-      return;
-    }
-
-    launchCamera(
-      {
-        mediaType: 'photo' as MediaType,
-        quality: 0.8,
-        includeBase64: false,
-      },
-      handleAttendanceImageResponse
-    );
-  };
-
-  const openAttendanceGallery = () => {
-    launchImageLibrary(
-      {
-        mediaType: 'photo' as MediaType,
-        quality: 0.8,
-        includeBase64: false,
-      },
-      handleAttendanceImageResponse
-    );
   };
 
   const openTaskCamera = async () => {
@@ -301,48 +144,6 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       },
       handleTaskMultipleImageResponse
     );
-  };
-
-  const handleAttendanceImageResponse = async (response: ImagePickerResponse) => {
-    if (response.didCancel || response.errorMessage || !response.assets?.[0]) {
-      return;
-    }
-
-    const imageUri = response.assets[0].uri!;
-    console.log('Attendance image selected:', imageUri);
-    
-    // Show processing indicator
-    console.log('🔄 Starting attendance image processing...');
-    setIsProcessingAttendanceImage(true);
-    
-    try {
-      // Get current location
-      const hasLocationPermission = await requestLocationPermission();
-      if (!hasLocationPermission) {
-        showErrorToast('Location permission is required to add location overlay');
-        return;
-      }
-
-      const location = await getCurrentLocation();
-      const timestamp = new Date().toISOString();
-      
-      console.log('Setting attendance data:', { imageUri, location, timestamp });
-      setCapturedAttendanceImage(imageUri);
-      setAttendanceLocation({
-        latitude: location.latitude,
-        longitude: location.longitude,
-        timestamp,
-      });
-      setIsAttendanceModalVisible(true);
-      console.log('Attendance modal should be visible now');
-    } catch (error) {
-      showErrorToast('Failed to get location. Please try again.');
-      console.error('Location error:', error);
-    } finally {
-      // Hide processing indicator
-      console.log('✅ Attendance image processing completed');
-      setIsProcessingAttendanceImage(false);
-    }
   };
 
   const handleTaskImageResponse = async (response: ImagePickerResponse) => {
@@ -441,52 +242,6 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     }
   };
 
-  const submitAttendance = async (imageWithOverlay: string, address: string) => {
-    console.log('Submitting attendance with image:', imageWithOverlay);
-    console.log('Using reverse geocoded address:', address);
-    if (!imageWithOverlay || !attendanceLocation) {
-      console.log('Missing data for attendance submission:', { imageWithOverlay, attendanceLocation });
-      return;
-    }
-
-    try {
-      // Compress image before submission to reduce network overhead
-      console.log('🗜️ Compressing attendance image...');
-      const compressionOptions = getAttendanceCompressionOptions();
-      const compressedImageUri = await compressImage(
-        imageWithOverlay,
-        compressionOptions.quality,
-        compressionOptions.maxWidth,
-        compressionOptions.maxHeight
-      );
-      console.log('✅ Attendance image compressed successfully');
-
-      await dispatch(markAttendance({
-        siteId: site.id,
-        imageUri: compressedImageUri, // Use compressed image
-        latitude: attendanceLocation.latitude,
-        longitude: attendanceLocation.longitude,
-        description: address, // Use reverse geocoded address as description
-      })).unwrap();
-      
-      // Only show success toast after successful API response
-      showSuccessToast(API_MESSAGES.ATTENDANCE_MARKED);
-      console.log('Attendance submitted successfully');
-      
-      // Refresh attendance data after successful submission
-      fetchAttendanceForTab(activeTab);
-    } catch (error: any) {
-      // Show error toast if API submission fails
-      showErrorToast(error || API_MESSAGES.ATTENDANCE_ERROR);
-      console.error('Attendance submission failed:', error);
-    } finally {
-      // Clean up regardless of success/failure
-      setIsAttendanceModalVisible(false);
-      setCapturedAttendanceImage(null);
-      setAttendanceLocation(null);
-    }
-  };
-
   const handleTaskReportSubmit = async (processedImageUris: string[], address: string) => {
     console.log('Submitting task report with images:', processedImageUris);
     console.log('Using reverse geocoded address:', address);
@@ -521,7 +276,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
       console.log('Task report submitted successfully');
       
       // Refresh task images data after successful submission
-      fetchAttendanceForTab(activeTab);
+      fetchTasksForTab(activeTab);
     } catch (error: any) {
       // Show error toast if API submission fails
       showErrorToast(error || API_MESSAGES.TASK_REPORT_ERROR);
@@ -600,38 +355,16 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     }
   };
 
-  const renderAttendanceItem = ({ item }: { item: AttendanceRecord }) => {
-    const displayImage = item.image_url;
-    const allImages = [item.image_url];
-    
-    // Use check_in_time for new format, fallback to timestamp for compatibility
-    const displayTime = item.check_in_time || item.timestamp;
-
-    return (
-      <View style={styles.attendanceItem}>
-        <TouchableOpacity onPress={() => openPhotoPreview(displayImage, allImages)}>
-          <Image source={{ uri: displayImage }} style={styles.attendanceImage} />
-        </TouchableOpacity>
-        <Text style={styles.attendanceTime}>
-          {formatDateTime(displayTime)}
-        </Text>
-        <Text style={styles.recordType}>
-          Attendance
-        </Text>
-      </View>
-    );
-  };
-
-  const renderAttendanceGroupItem = ({ item }: { item: AttendanceGroupDisplayItem }) => {
-    const allImageUrls = item.records.map(record => record.image_url);
+  const renderTaskGroupItem = ({ item }: { item: TaskGroupDisplayItem }) => {
+    const allImageUrls = item.images.map(img => img.image_url);
     
     return (
       <View style={styles.attendanceItem}>
-        <TouchableOpacity onPress={() => openPhotoPreview(item.displayRecord.image_url, allImageUrls)}>
-          <Image source={{ uri: item.displayRecord.image_url }} style={styles.attendanceImage} />
-          {item.recordCount > 1 && (
+        <TouchableOpacity onPress={() => openPhotoPreview(item.displayImage, allImageUrls)}>
+          <Image source={{ uri: item.displayImage }} style={styles.attendanceImage} />
+          {item.imageCount > 1 && (
             <View style={styles.imageCountBadge}>
-              <Text style={styles.imageCountText}>{item.recordCount}</Text>
+              <Text style={styles.imageCountText}>{item.imageCount}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -639,55 +372,10 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
           {formatDateTime(item.timestamp)}
         </Text>
         <Text style={styles.recordType}>
-          Attendance
+          Task Report
         </Text>
       </View>
     );
-  };
-
-  // Convert grouped attendance records to display items for grid
-  const getAttendanceGroupDisplayItems = (): AttendanceGroupDisplayItem[] => {
-    return Object.keys(groupedAttendanceRecords).map(date => {
-      const records = groupedAttendanceRecords[date];
-      // Create a new array and sort with timestamp validation
-      const sortedRecords = [...records].sort((a, b) => {
-        const aTime = a.check_in_time || a.timestamp;
-        const bTime = b.check_in_time || b.timestamp;
-        
-        const aDate = aTime ? new Date(aTime) : new Date(0);
-        const bDate = bTime ? new Date(bTime) : new Date(0);
-        
-        const aValid = !isNaN(aDate.getTime());
-        const bValid = !isNaN(bDate.getTime());
-        
-        if (!aValid && !bValid) return 0;
-        if (!aValid) return 1;
-        if (!bValid) return -1;
-        
-        return bDate.getTime() - aDate.getTime();
-      });
-      
-      return {
-        id: `attendance-group-${date}`,
-        date,
-        records: sortedRecords,
-        displayRecord: sortedRecords[0], // Use latest record
-        recordCount: sortedRecords.length,
-        timestamp: sortedRecords[0]?.check_in_time || sortedRecords[0]?.timestamp || date, // Use latest timestamp or fallback to date
-      };
-    }).sort((a, b) => {
-      const aDate = a.timestamp ? new Date(a.timestamp) : new Date(0);
-      const bDate = b.timestamp ? new Date(b.timestamp) : new Date(0);
-      
-      const aValid = !isNaN(aDate.getTime());
-      const bValid = !isNaN(bDate.getTime());
-      
-      if (!aValid && !bValid) return 0;
-      if (!aValid) return 1;
-      if (!bValid) return -1;
-      
-      return bDate.getTime() - aDate.getTime();
-    });
   };
 
   // Convert grouped task images to display items for grid
@@ -732,73 +420,20 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     });
   };
 
-  const renderTaskGroupItem = ({ item }: { item: TaskGroupDisplayItem }) => {
-    const allImageUrls = item.images.map(img => img.image_url);
-    
-    return (
-      <View style={styles.attendanceItem}>
-        <TouchableOpacity onPress={() => openPhotoPreview(item.displayImage, allImageUrls)}>
-          <Image source={{ uri: item.displayImage }} style={styles.attendanceImage} />
-          {item.imageCount > 1 && (
-            <View style={styles.imageCountBadge}>
-              <Text style={styles.imageCountText}>{item.imageCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-        <Text style={styles.attendanceTime}>
-          {formatDateTime(item.timestamp)}
-        </Text>
-        <Text style={styles.recordType}>
-          Task Report
-        </Text>
-      </View>
-    );
-  };
-
-  // Use grouped attendance records and task groups for unified display
+  // Use grouped task images for unified display (no more attendance)
   const taskGroupDisplayItems = getTaskGroupDisplayItems();
-  const attendanceGroupDisplayItems = getAttendanceGroupDisplayItems();
-  
-  // For backward compatibility, still include legacy today/month tasks if they exist
-  const legacyTasks = activeTab === 0 ? todayTasks : monthTasks;
 
-  // Combine grouped attendance records, task groups, and legacy tasks for unified display
+  // Combine only task groups for unified display
   const allRecords = [
-    ...attendanceGroupDisplayItems,
     ...taskGroupDisplayItems,
-    ...legacyTasks // Include any legacy tasks that might not be grouped yet
   ];
 
-  // Sort by timestamp (newest first) - handle different record types
+  // Sort by timestamp (newest first) - handle only task records
   // Create a new array to avoid mutating read-only Redux state
   const sortedRecords = [...allRecords].sort((a, b) => {
-    let aTime: string;
-    let bTime: string;
-    
-    // Determine timestamp based on record type
-    if ('records' in a) {
-      // AttendanceGroupDisplayItem
-      aTime = a.timestamp;
-    } else if ('images' in a) {
-      // TaskGroupDisplayItem
-      aTime = a.timestamp;
-    } else {
-      // Legacy AttendanceRecord
-      const legacyRecord = a as AttendanceRecord;
-      aTime = legacyRecord.check_in_time || legacyRecord.timestamp;
-    }
-    
-    if ('records' in b) {
-      // AttendanceGroupDisplayItem
-      bTime = b.timestamp;
-    } else if ('images' in b) {
-      // TaskGroupDisplayItem
-      bTime = b.timestamp;
-    } else {
-      // Legacy AttendanceRecord
-      const legacyRecord = b as AttendanceRecord;
-      bTime = legacyRecord.check_in_time || legacyRecord.timestamp;
-    }
+    // All records are TaskGroupDisplayItem now
+    const aTime = a.timestamp;
+    const bTime = b.timestamp;
     
     // Handle cases where timestamps might be missing or invalid
     const aDate = aTime ? new Date(aTime) : new Date(0);
@@ -815,42 +450,14 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
     return bDate.getTime() - aDate.getTime();
   });
 
-  const renderRecord = ({ item }: { item: AttendanceRecord | TaskGroupDisplayItem | AttendanceGroupDisplayItem }) => {
-    // Check if it's an attendance group item
-    if ('records' in item) {
-      return renderAttendanceGroupItem({ item });
-    }
-    // Check if it's a task group item
-    else if ('images' in item) {
-      return renderTaskGroupItem({ item });
-    } 
-    // Legacy attendance record
-    else {
-      return renderAttendanceItem({ item });
-    }
+  const renderRecord = ({ item }: { item: TaskGroupDisplayItem }) => {
+    // All records are task group items now
+    return renderTaskGroupItem({ item });
   };
 
-  // Function to handle scroll events for pagination
+  // Simplified scroll handler (no pagination for tasks currently)
   const handleScroll = (event: any) => {
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    const scrollPercentage = (contentOffset.y + layoutMeasurement.height) / contentSize.height;
-    
-    // Load more when user scrolls to 70% of the content
-    if (scrollPercentage >= 0.7) {
-      if (activeTab === 1) {
-        // This Month tab
-        if (thisMonthPagination.hasMore && !thisMonthPagination.isLoadingMore) {
-          console.log('Loading more This Month data at 70% scroll');
-          fetchAttendanceForTab(1, true);
-        }
-      } else if (activeTab === 2) {
-        // Last Month tab
-        if (lastMonthPagination.hasMore && !lastMonthPagination.isLoadingMore) {
-          console.log('Loading more Last Month data at 70% scroll');
-          fetchAttendanceForTab(2, true);
-        }
-      }
-    }
+    // No pagination needed for tasks currently
   };
 
   return (
@@ -880,42 +487,13 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
           </View>
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.buttonContainer}>
-          <Button
-            title={isProcessingAttendanceImage ? STRINGS.PROCESSING_IMAGE : STRINGS.MARK_ATTENDANCE}
-            onPress={showAttendanceImagePicker}
-            loading={isMarkingAttendance || isProcessingAttendanceImage}
-            style={StyleSheet.flatten([
-              styles.halfWidthButton,
-              isAttendanceDisabled && styles.disabledButton
-            ])}
-            disabled={isAttendanceDisabled || isProcessingAttendanceImage} // Disable during processing
-          />
-          
-          <Button
-            title={isProcessingTaskImages ? STRINGS.PROCESSING_IMAGE : "Add Task Report"}
-            onPress={showTaskImagePicker}
-            loading={isSubmittingTask || isProcessingTaskImages}
-            disabled={isProcessingTaskImages} // Disable during processing
-            style={styles.taskReportButtonRight}
-          />
-        </View>
+        {/* No action buttons in header area anymore */}
 
-        {/* Show info message when attendance is disabled */}
-        {isAttendanceDisabled && (
-          <View style={styles.infoContainer}>
-            <Text style={styles.infoText}>
-              💡 Attendance marking is not available when viewing sites from "All Sites" tab. Only task reports can be submitted for sites you don't directly manage.
-            </Text>
-          </View>
-        )}
-
-        {/* Show processing message when images are being processed */}
-        {(isProcessingAttendanceImage || isProcessingTaskImages) && (
+        {/* Show processing message when task images are being processed */}
+        {isProcessingTaskImages && (
           <View style={styles.processingContainer}>
             <Text style={styles.processingText}>
-              📸 {isProcessingAttendanceImage ? 'Processing attendance image...' : 'Processing task images...'}
+              📸 Processing task images...
             </Text>
             <Text style={styles.processingSubtext}>
               Getting location and preparing image data
@@ -929,7 +507,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
             style={[styles.tab, activeTab === 0 && styles.activeTab]}
             onPress={() => {
               setActiveTab(0);
-              fetchAttendanceForTab(0);
+              fetchTasksForTab(0);
             }}>
             <Text style={[styles.tabText, activeTab === 0 && styles.activeTabText]}>
               Today's
@@ -939,7 +517,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
             style={[styles.tab, activeTab === 1 && styles.activeTab]}
             onPress={() => {
               setActiveTab(1);
-              fetchAttendanceForTab(1);
+              fetchTasksForTab(1);
             }}>
             <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
               This Month
@@ -949,7 +527,7 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
             style={[styles.tab, activeTab === 2 && styles.activeTab]}
             onPress={() => {
               setActiveTab(2);
-              fetchAttendanceForTab(2);
+              fetchTasksForTab(2);
             }}>
             <Text style={[styles.tabText, activeTab === 2 && styles.activeTabText]}>
               Last Month
@@ -988,31 +566,20 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
             </View>
           )}
           
-          {/* Loading more indicator for pagination */}
-          {((activeTab === 1 && thisMonthPagination.isLoadingMore) || 
-            (activeTab === 2 && lastMonthPagination.isLoadingMore)) && (
-            <View style={styles.loadingMoreContainer}>
-              <Text style={styles.loadingMoreText}>Loading more...</Text>
-            </View>
-          )}
+          {/* No loading indicators for tasks currently */}
         </View>
       </ScrollView>
 
-      {/* Attendance Submission Modal */}
-      <LocationSubmissionModal
-        visible={isAttendanceModalVisible}
-        imageUri={capturedAttendanceImage}
-        latitude={attendanceLocation?.latitude || 0}
-        longitude={attendanceLocation?.longitude || 0}
-        timestamp={attendanceLocation?.timestamp || new Date().toISOString()}
-        title="Mark Attendance"
-        onSubmit={submitAttendance}
-        onCancel={() => {
-          setIsAttendanceModalVisible(false);
-          setCapturedAttendanceImage(null);
-          setAttendanceLocation(null);
-        }}
-      />
+      {/* Submit Task Report Button at bottom */}
+      <View style={styles.bottomButtonContainer}>
+        <Button
+          title={isProcessingTaskImages ? "Processing Images..." : "Submit Task Report"}
+          onPress={showTaskImagePicker}
+          loading={isSubmittingTask || isProcessingTaskImages}
+          disabled={isProcessingTaskImages}
+          style={styles.bottomTaskReportButton}
+        />
+      </View>
 
       {/* Task Report Submission Modal */}
       <MultiImageLocationSubmissionModal
@@ -1040,16 +607,6 @@ const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({ route, navigation }
         onGallery={openTaskGalleryMultiple}
         title="Add Task Photos"
         allowMultiple={true}
-      />
-
-      {/* Attendance Image Picker Modal */}
-      <ImagePickerModal
-        visible={isAttendancePickerVisible}
-        onClose={() => setIsAttendancePickerVisible(false)}
-        onCamera={openAttendanceCamera}
-        onGallery={openAttendanceGallery}
-        title="Mark Attendance"
-        allowMultiple={false}
       />
 
       {/* Photo Preview Modal */}
@@ -1527,6 +1084,15 @@ const styles = StyleSheet.create({
     fontSize: SIZES.FONT_SIZE_SMALL,
     color: COLORS.TEXT_SECONDARY,
     fontStyle: 'italic',
+  },
+  bottomButtonContainer: {
+    paddingHorizontal: SIZES.MARGIN_MEDIUM,
+    paddingVertical: SIZES.PADDING_MEDIUM,
+    paddingBottom: Platform.OS === 'ios' ? SIZES.PADDING_MEDIUM : SIZES.PADDING_LARGE,
+    backgroundColor: COLORS.BACKGROUND,
+  },
+  bottomTaskReportButton: {
+    backgroundColor: COLORS.SECONDARY || '#FF6B35',
   },
 });
 
