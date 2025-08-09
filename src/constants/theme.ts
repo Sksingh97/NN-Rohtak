@@ -127,4 +127,15 @@ export const SHADOWS = {
     shadowRadius: 4.65,
     elevation: 8,
   },
+  // Custom shadow for rounded components to avoid pointed corners
+  ROUNDED: {
+    shadowColor: COLORS.BLACK,
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.25, // Increased to 0.25 for more visible shadow
+    shadowRadius: 2.0, // Reduced to 2.0 for more defined shadow
+    elevation: 3, // Increased to 3 for better Android visibility
+  },
 };

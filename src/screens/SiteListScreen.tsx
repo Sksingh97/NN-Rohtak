@@ -13,10 +13,9 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  MagnifyingGlassIcon,
   ChevronRightIcon,
   MapPinIcon,
-  ArrowRightOnRectangleIcon,
-  MagnifyingGlassIcon,
 } from 'react-native-heroicons/outline';
 import { RootState, AppDispatch } from '../store';
 import { Site } from '../types';
@@ -25,7 +24,6 @@ import {
   fetchMySites,
   setSearchQuery,
 } from '../store/slices/siteSlice';
-import { logoutUser } from '../store/slices/authSlice';
 import { withLoader } from '../components/Loader';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
 import { STRINGS } from '../constants/strings';
@@ -33,9 +31,10 @@ import { STRINGS } from '../constants/strings';
 interface SiteListScreenProps {
   navigation: any;
   showAll?: boolean; // Add optional showAll prop to control which sites to show
+  hideHeader?: boolean; // Add optional prop to hide the header when used in tabs
 }
 
-const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation, showAll = false }) => {
+const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation, showAll = false, hideHeader = true }) => {
   const dispatch = useDispatch<AppDispatch>();
   
   const { user } = useSelector((state: RootState) => state.auth);
@@ -61,16 +60,7 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation, showAll = f
       site.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       site.address.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [showAll, mySites, allSites, searchQuery]);  const handleLogout = () => {
-    Alert.alert(
-      STRINGS.LOGOUT,
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', onPress: () => dispatch(logoutUser()) },
-      ]
-    );
-  };
+  }, [showAll, mySites, allSites, searchQuery]);
 
   const handleRefresh = () => {
     if (user) {
@@ -114,16 +104,15 @@ const SiteListScreen: React.FC<SiteListScreenProps> = ({ navigation, showAll = f
 
   return (
     <SafeAreaView style={styles.container}  edges={['left', 'right']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>{STRINGS.SITE_LIST}</Text>
-          <Text style={styles.headerSubtitle}>Welcome, {user?.name}</Text>
+      {/* Header - Only show when not used in tabs */}
+      {!hideHeader && (
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>{STRINGS.SITE_LIST}</Text>
+            <Text style={styles.headerSubtitle}>Welcome, {user?.name}</Text>
+          </View>
         </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <ArrowRightOnRectangleIcon size={24} color={COLORS.ERROR} />
-        </TouchableOpacity>
-      </View>
+      )}
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -183,9 +172,6 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_SECONDARY,
     marginTop: 2,
   },
-  logoutButton: {
-    padding: SIZES.PADDING_SMALL,
-  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -193,7 +179,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MEDIUM,
     paddingHorizontal: SIZES.PADDING_MEDIUM,
-    ...SHADOWS.LIGHT,
+    borderWidth: 0.5,
+    borderColor: COLORS.BORDER_LIGHT,
+    ...SHADOWS.ROUNDED,
   },
   searchIcon: {
     marginRight: SIZES.MARGIN_SMALL,
@@ -211,7 +199,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MEDIUM,
     padding: 4,
-    ...SHADOWS.LIGHT,
+    ...SHADOWS.ROUNDED,
   },
   tab: {
     flex: 1,
@@ -241,7 +229,7 @@ const styles = StyleSheet.create({
     padding: SIZES.PADDING_LARGE,
     marginVertical: SIZES.MARGIN_SMALL,
     borderRadius: SIZES.BORDER_RADIUS_MEDIUM,
-    ...SHADOWS.LIGHT,
+    ...SHADOWS.ROUNDED,
   },
   siteIcon: {
     width: 40,

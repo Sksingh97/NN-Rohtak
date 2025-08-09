@@ -199,16 +199,14 @@ const SweeperListScreen: React.FC<SweeperListScreenProps> = ({
     <SafeAreaView style={styles.container}  edges={['left', 'right']}>
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
-          <MagnifyingGlassIcon size={20} color={COLORS.GRAY_MEDIUM} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={`Search ${showAll ? 'all sweepers' : 'my sweepers'}...`}
-            value={searchQuery}
-            onChangeText={(text) => dispatch(setSearchQuery(text))}
-            placeholderTextColor={COLORS.GRAY_MEDIUM}
-          />
-        </View>
+        <MagnifyingGlassIcon size={20} color={COLORS.GRAY_MEDIUM} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder={`Search ${showAll ? 'all sweepers' : 'my sweepers'}...`}
+          value={searchQuery}
+          onChangeText={(text) => dispatch(setSearchQuery(text))}
+          placeholderTextColor={COLORS.GRAY_MEDIUM}
+        />
       </View>
 
       {/* Sweepers List */}
@@ -243,42 +241,42 @@ const SweeperListScreen: React.FC<SweeperListScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: COLORS.BACKGROUND,
   },
   searchContainer: {
-    paddingHorizontal: SIZES.PADDING_MEDIUM,
-    paddingVertical: SIZES.PADDING_SMALL,
-    backgroundColor: COLORS.WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER_LIGHT,
-  },
-  searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.GRAY_LIGHT,
+    margin: SIZES.MARGIN_MEDIUM,
+    backgroundColor: COLORS.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MEDIUM,
     paddingHorizontal: SIZES.PADDING_MEDIUM,
-    height: 44,
+    borderWidth: 0.5,
+    borderColor: COLORS.BORDER_LIGHT,
+    ...SHADOWS.ROUNDED,
+  },
+  searchIcon: {
+    marginRight: SIZES.MARGIN_SMALL,
   },
   searchInput: {
     flex: 1,
-    marginLeft: SIZES.PADDING_SMALL,
-    fontSize: SIZES.FONT_SIZE_MEDIUM,
-    color: COLORS.BLACK,
+    height: SIZES.INPUT_HEIGHT,
+    fontSize: SIZES.FONT_SIZE_LARGE,
+    color: COLORS.TEXT_PRIMARY,
   },
   listContainer: {
-    padding: SIZES.PADDING_MEDIUM,
+    paddingHorizontal: SIZES.PADDING_MEDIUM,
+    paddingBottom: SIZES.PADDING_LARGE,
   },
   sweeperCard: {
     backgroundColor: COLORS.WHITE,
     borderRadius: SIZES.BORDER_RADIUS_MEDIUM,
-    marginBottom: SIZES.PADDING_MEDIUM,
-    ...SHADOWS.LIGHT,
+    marginVertical: SIZES.MARGIN_SMALL,
+    ...SHADOWS.ROUNDED,
   },
   sweeperContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: SIZES.PADDING_MEDIUM,
+    padding: SIZES.PADDING_LARGE,
   },
   iconContainer: {
     width: 40,

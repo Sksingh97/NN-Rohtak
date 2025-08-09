@@ -1,6 +1,6 @@
-// const BASE_URL = 'https://api.sbmrohtak.in/api';
+const BASE_URL = 'https://api.sbmrohtak.in/api';
 
-const BASE_URL = 'https://endlessly-helpful-oarfish.ngrok-free.app/api';
+// const BASE_URL = 'https://endlessly-helpful-oarfish.ngrok-free.app/api';
 
 export const API_CONFIG = {
   BASE_URL,

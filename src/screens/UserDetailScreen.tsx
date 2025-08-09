@@ -299,17 +299,19 @@ const UserDetailScreen: React.FC<UserDetailScreenProps> = ({ route, navigation }
         description: address || 'User attendance',
       };
 
-      await dispatch(markUserAttendance(attendanceData));
+      // Wait for API response and only show success toast if successful
+      await dispatch(markUserAttendance(attendanceData)).unwrap();
       
-      // Reset states
+      // Only show success toast after successful API response
+      showSuccessToast('Attendance marked successfully');
+      
+      // Reset states only after successful submission
       setCapturedAttendanceImage(null);
       setAttendanceLocation(null);
       setIsAttendanceModalVisible(false);
       
       // Refresh current tab data
       fetchAttendanceForTab(activeTab);
-      
-      showSuccessToast('Attendance marked successfully');
     } catch (error) {
       console.error('Attendance submission error:', error);
       showErrorToast('Failed to submit attendance');
